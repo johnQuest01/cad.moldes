@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-23200 0 146400 287794.60000000003" width="760">
+  <title>Margem uniforme de 10 mm</title>
+  <rect x="-23200" y="0" width="146400" height="287794.60000000003" fill="#ffffff"/>
+  <text x="-17920" y="6347.172" font-size="4377.36" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Margem uniforme de 10 mm</text>
+  <g transform="translate(0 267373.26399999997) scale(1 -1)">
+    <g transform="translate(0 33686.632)">
+      <path d="M110000 210000 L-10000 210000 L-10000 -10000 L110000 -10000 Z" fill="none" stroke="#d1242f" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M0 0 L100000 0 L100000 200000 L0 200000 Z" fill="none" stroke="#1f6feb" stroke-width="512.4" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="732" fill="#1f6feb"/>
+      <circle cx="100000" cy="0" r="732" fill="#1f6feb"/>
+      <circle cx="100000" cy="200000" r="732" fill="#1f6feb"/>
+      <circle cx="0" cy="200000" r="732" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-17920" y="262405.912" font-size="3806.3999999999996" fill="#d1242f" font-family="ui-monospace, monospace">— linha de corte (offset 10 mm)</text>
+    <text x="-17920" y="267925.19200000004" font-size="3806.3999999999996" fill="#1f6feb" font-family="ui-monospace, monospace">— linha de costura</text>
+  <text x="-17920" y="276756.04000000004" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">costura 100 x 200 mm  ->  corte 120 x 220 mm</text>
+    <text x="-17920" y="282275.32000000007" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">4 vertices no corte: cantos em Miter, nao arredondados</text>
+</svg>

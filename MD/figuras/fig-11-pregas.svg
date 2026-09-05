@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-139200 0 358400 453249.27999999997" width="760">
+  <title>Dobra multipla: 3 pregas de 20 mm (operacao 14)</title>
+  <rect x="-139200" y="0" width="358400" height="453249.27999999997" fill="#ffffff"/>
+  <text x="-131520" y="15538.431999999997" font-size="10716.159999999998" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Dobra multipla: 3 pregas de 20 mm (operacao 14)</text>
+  <g transform="translate(0 389744.38399999996) scale(1 -1)">
+    <g transform="translate(0 44872.191999999995)">
+      <path d="M-120000 0 L-30000 0 L60000 0 L150000 0 L200000 0 L200000 300000 L150000 300000 L60000 300000 L-30000 300000 L-120000 300000 Z" fill="none" stroke="#1f6feb" stroke-width="1254.4" stroke-linejoin="round"/>
+      <path d="M0 0 L200000 0 L200000 300000 L0 300000 Z" fill="none" stroke="#8250df" stroke-width="1254.4" stroke-linejoin="round" stroke-dasharray="3942.3999999999996 2867.2000000000003"/>
+      <circle cx="-120000" cy="0" r="1792" fill="#1f6feb"/>
+      <circle cx="-30000" cy="0" r="1792" fill="#1f6feb"/>
+      <circle cx="60000" cy="0" r="1792" fill="#1f6feb"/>
+      <circle cx="150000" cy="0" r="1792" fill="#1f6feb"/>
+      <circle cx="200000" cy="0" r="1792" fill="#1f6feb"/>
+      <circle cx="200000" cy="300000" r="1792" fill="#1f6feb"/>
+      <circle cx="150000" cy="300000" r="1792" fill="#1f6feb"/>
+      <circle cx="60000" cy="300000" r="1792" fill="#1f6feb"/>
+      <circle cx="-30000" cy="300000" r="1792" fill="#1f6feb"/>
+      <circle cx="-120000" cy="300000" r="1792" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-131520" y="377583.872" font-size="9318.4" fill="#1f6feb" font-family="ui-monospace, monospace">— peca PLANA, com as pregas abertas</text>
+    <text x="-131520" y="391095.55199999997" font-size="9318.4" fill="#8250df" font-family="ui-monospace, monospace">— peca acabada (como fica vestida)</text>
+  <text x="-131520" y="412714.23999999993" font-size="8200.192" fill="#1f2328" font-family="ui-monospace, monospace">acabada 200 mm -> plana 320 mm</text>
+    <text x="-131520" y="426225.9199999999" font-size="8200.192" fill="#1f2328" font-family="ui-monospace, monospace">conta manual: 200 + 3 x (2 x 20) = 320 mm | abertura somada 120 mm</text>
+    <text x="-131520" y="439737.5999999999" font-size="8200.192" fill="#1f2328" font-family="ui-monospace, monospace">6 piques de prega marcam inicio e fim de cada dobra</text>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-25680 0 241360 556703.812" width="760">
+  <title>Graduacao encaixada (nest) — passos assimetricos</title>
+  <rect x="-25680" y="0" width="241360" height="556703.812" fill="#ffffff"/>
+  <text x="-15408" y="10464.162799999998" font-size="7216.663999999999" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Graduacao encaixada (nest) — passos assimetricos</text>
+  <g transform="translate(0 513937.2336) scale(1 -1)">
+    <g transform="translate(0 42968.616799999996)">
+      <path d="M0 0 L190000 0 L190000 428000 L0 428000 Z" fill="none" stroke="#d1242f" stroke-width="844.76" stroke-linejoin="round"/>
+      <path d="M0 0 L180000 0 L180000 420000 L0 420000 Z" fill="none" stroke="#1f6feb" stroke-width="844.76" stroke-linejoin="round"/>
+      <path d="M0 0 L175000 0 L175000 416000 L0 416000 Z" fill="none" stroke="#8250df" stroke-width="844.76" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="1206.8" fill="#d1242f"/>
+      <circle cx="190000" cy="0" r="1206.8" fill="#d1242f"/>
+      <circle cx="190000" cy="428000" r="1206.8" fill="#d1242f"/>
+      <circle cx="0" cy="428000" r="1206.8" fill="#d1242f"/>
+      <circle cx="0" cy="0" r="1206.8" fill="#1f6feb"/>
+      <circle cx="180000" cy="0" r="1206.8" fill="#1f6feb"/>
+      <circle cx="180000" cy="420000" r="1206.8" fill="#1f6feb"/>
+      <circle cx="0" cy="420000" r="1206.8" fill="#1f6feb"/>
+      <circle cx="0" cy="0" r="1206.8" fill="#8250df"/>
+      <circle cx="175000" cy="0" r="1206.8" fill="#8250df"/>
+      <circle cx="175000" cy="416000" r="1206.8" fill="#8250df"/>
+      <circle cx="0" cy="416000" r="1206.8" fill="#8250df"/>
+    </g>
+  </g>
+  <text x="-15408" y="505747.8888" font-size="6275.36" fill="#d1242f" font-family="ui-monospace, monospace">— tamanho 46: 190 x 428 mm</text>
+    <text x="-15408" y="514847.1608" font-size="6275.36" fill="#1f6feb" font-family="ui-monospace, monospace">— tamanho 38: 180 x 420 mm</text>
+    <text x="-15408" y="523946.4328" font-size="6275.36" fill="#8250df" font-family="ui-monospace, monospace">— tamanho 34: 175 x 416 mm</text>
+  <text x="-15408" y="538505.268" font-size="5522.3168" fill="#1f2328" font-family="ui-monospace, monospace">passo 34->38: +5 mm largura, +4 mm altura | passo 38->46: +10 mm, +8 mm</text>
+    <text x="-15408" y="547604.54" font-size="5522.3168" fill="#1f2328" font-family="ui-monospace, monospace">o canto pt-0 e grade point SEM regra: e a ancora e nao anda (D7)</text>
+</svg>

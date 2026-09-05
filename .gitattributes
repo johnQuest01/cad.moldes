@@ -1,0 +1,8 @@
+# Normaliza a quebra de linha no repositorio (LF) e deixa cada maquina com a sua
+# no working copy. Sem isto, um mesmo arquivo salvo no Windows e no Linux aparece
+# como "arquivo inteiro alterado" no diff, e o CI compara ruido em vez de codigo.
+* text=auto eol=lf
+
+*.svg text eol=lf
+*.png binary
+*.jpg binary

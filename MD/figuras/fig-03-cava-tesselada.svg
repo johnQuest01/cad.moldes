@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-23722.92 0 162827.84 208867.41176" width="760">
+  <title>Cava Bezier: tesselacao e offset por aresta</title>
+  <rect x="-23722.92" y="0" width="162827.84" height="208867.41176" fill="#ffffff"/>
+  <text x="-20233.751999999997" y="7059.4010032" font-size="4868.5524159999995" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Cava Bezier: tesselacao e offset por aresta</text>
+  <g transform="translate(0 186154.5563584) scale(1 -1)">
+    <g transform="translate(0 35386.2781792)">
+      <path d="M129834 6681 L129332 13279 L128506 19785 L127362 26188 L125910 32482 L124157 38655 L122111 44699 L119783 50605 L117179 56366 L114307 61974 L111176 67418 L107795 72692 L104171 77788 L100313 82698 L96228 87413 L91926 91926 L87413 96228 L82698 100313 L77788 104171 L72692 107795 L67418 111176 L61974 114307 L56366 117179 L50605 119783 L44699 122111 L38655 124157 L32482 125910 L26188 127362 L19785 128506 L13279 129332 L6681 129834 L-15000 130382 L-15000 -15000 L130382 -15000 Z" fill="none" stroke="#d1242f" stroke-width="569.89744" stroke-linejoin="round"/>
+      <path d="M120000 0 L119844 6175 L119380 12269 L118617 18275 L117562 24184 L116222 29990 L114605 35684 L112718 41260 L110570 46709 L108167 52025 L105517 57199 L102627 62224 L99506 67093 L96160 71798 L92598 76331 L88826 80685 L84853 84853 L80685 88826 L76331 92598 L71798 96160 L67093 99506 L62224 102627 L57199 105517 L52025 108167 L46709 110570 L41260 112718 L35684 114605 L29990 116222 L24184 117562 L18275 118617 L12269 119380 L6175 119844 L0 120000 L0 0 Z" fill="none" stroke="#1f6feb" stroke-width="569.89744" stroke-linejoin="round"/>
+      <circle cx="120000" cy="0" r="814.1392" fill="#1f6feb"/>
+      <circle cx="119844" cy="6175" r="814.1392" fill="#1f6feb"/>
+      <circle cx="119380" cy="12269" r="814.1392" fill="#1f6feb"/>
+      <circle cx="118617" cy="18275" r="814.1392" fill="#1f6feb"/>
+      <circle cx="117562" cy="24184" r="814.1392" fill="#1f6feb"/>
+      <circle cx="116222" cy="29990" r="814.1392" fill="#1f6feb"/>
+      <circle cx="114605" cy="35684" r="814.1392" fill="#1f6feb"/>
+      <circle cx="112718" cy="41260" r="814.1392" fill="#1f6feb"/>
+      <circle cx="110570" cy="46709" r="814.1392" fill="#1f6feb"/>
+      <circle cx="108167" cy="52025" r="814.1392" fill="#1f6feb"/>
+      <circle cx="105517" cy="57199" r="814.1392" fill="#1f6feb"/>
+      <circle cx="102627" cy="62224" r="814.1392" fill="#1f6feb"/>
+      <circle cx="99506" cy="67093" r="814.1392" fill="#1f6feb"/>
+      <circle cx="96160" cy="71798" r="814.1392" fill="#1f6feb"/>
+      <circle cx="92598" cy="76331" r="814.1392" fill="#1f6feb"/>
+      <circle cx="88826" cy="80685" r="814.1392" fill="#1f6feb"/>
+      <circle cx="84853" cy="84853" r="814.1392" fill="#1f6feb"/>
+      <circle cx="80685" cy="88826" r="814.1392" fill="#1f6feb"/>
+      <circle cx="76331" cy="92598" r="814.1392" fill="#1f6feb"/>
+      <circle cx="71798" cy="96160" r="814.1392" fill="#1f6feb"/>
+      <circle cx="67093" cy="99506" r="814.1392" fill="#1f6feb"/>
+      <circle cx="62224" cy="102627" r="814.1392" fill="#1f6feb"/>
+      <circle cx="57199" cy="105517" r="814.1392" fill="#1f6feb"/>
+      <circle cx="52025" cy="108167" r="814.1392" fill="#1f6feb"/>
+      <circle cx="46709" cy="110570" r="814.1392" fill="#1f6feb"/>
+      <circle cx="41260" cy="112718" r="814.1392" fill="#1f6feb"/>
+      <circle cx="35684" cy="114605" r="814.1392" fill="#1f6feb"/>
+      <circle cx="29990" cy="116222" r="814.1392" fill="#1f6feb"/>
+      <circle cx="24184" cy="117562" r="814.1392" fill="#1f6feb"/>
+      <circle cx="18275" cy="118617" r="814.1392" fill="#1f6feb"/>
+      <circle cx="12269" cy="119380" r="814.1392" fill="#1f6feb"/>
+      <circle cx="6175" cy="119844" r="814.1392" fill="#1f6feb"/>
+      <circle cx="0" cy="120000" r="814.1392" fill="#1f6feb"/>
+      <circle cx="0" cy="0" r="814.1392" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-20233.751999999997" y="180629.80774720002" font-size="4233.52384" fill="#d1242f" font-family="ui-monospace, monospace">— corte (cava 10 mm, catetos 15 mm)</text>
+    <text x="-20233.751999999997" y="186768.41731520003" font-size="4233.52384" fill="#1f6feb" font-family="ui-monospace, monospace">— costura tesselada</text>
+  <text x="-20233.751999999997" y="196590.19262400002" font-size="3725.5009792" fill="#1f2328" font-family="ui-monospace, monospace">cava R = 120 mm: 188517 UM medidos | arco exato 188496 UM</text>
+    <text x="-20233.751999999997" y="202728.802192" font-size="3725.5009792" fill="#1f2328" font-family="ui-monospace, monospace">34 vertices na costura @ tolerancia de 100 UM</text>
+</svg>

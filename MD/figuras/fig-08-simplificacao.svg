@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-14400 0 268800 265369.72" width="760">
+  <title>Simplificacao com tolerancia explicita (operacao 11)</title>
+  <rect x="-14400" y="0" width="268800" height="265369.72" fill="#ffffff"/>
+  <text x="-8640" y="11653.823999999997" font-size="8037.119999999999" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Simplificacao com tolerancia explicita (operacao 11)</text>
+  <g transform="translate(0 207607.288) scale(1 -1)">
+    <g transform="translate(0 33953.144)">
+      <path d="M0 0 L6000 297 L12000 -77 L18000 -278 L24000 148 L30000 240 L36000 -210 L42000 -185 L48000 258 L54000 119 L60000 -288 L66000 -45 L72000 300 L78000 -33 L84000 -292 L90000 108 L96000 264 L102000 -176 L108000 -219 L114000 232 L120000 159 L126000 -273 L132000 -88 L138000 296 L144000 12 L150000 -299 L156000 65 L162000 282 L168000 -137 L174000 -247 L180000 201 L186000 195 L192000 -251 L198000 -130 L204000 285 L210000 57 L216000 -299 L222000 20 L228000 294 L234000 -96 L240000 -269 L240000 140000 L0 140000 Z" fill="none" stroke="#d0d7de" stroke-width="940.8000000000001" stroke-linejoin="round" stroke-dasharray="2956.7999999999997 2150.4"/>
+      <path d="M0 0 L6000 297 L18000 -278 L24000 148 L30000 240 L36000 -210 L42000 -185 L48000 258 L54000 119 L60000 -288 L72000 300 L84000 -292 L90000 108 L96000 264 L102000 -176 L108000 -219 L114000 232 L120000 159 L126000 -273 L138000 296 L150000 -299 L162000 282 L168000 -137 L174000 -247 L180000 201 L186000 195 L192000 -251 L198000 -130 L204000 285 L216000 -299 L228000 294 L234000 -96 L240000 -269 L240000 140000 L0 140000 Z" fill="none" stroke="#1f6feb" stroke-width="940.8000000000001" stroke-linejoin="round"/>
+      <path d="M0 0 L240000 -269 L240000 140000 L0 140000 Z" fill="none" stroke="#d1242f" stroke-width="940.8000000000001" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="1344" fill="#1f6feb"/>
+      <circle cx="6000" cy="297" r="1344" fill="#1f6feb"/>
+      <circle cx="18000" cy="-278" r="1344" fill="#1f6feb"/>
+      <circle cx="24000" cy="148" r="1344" fill="#1f6feb"/>
+      <circle cx="30000" cy="240" r="1344" fill="#1f6feb"/>
+      <circle cx="36000" cy="-210" r="1344" fill="#1f6feb"/>
+      <circle cx="42000" cy="-185" r="1344" fill="#1f6feb"/>
+      <circle cx="48000" cy="258" r="1344" fill="#1f6feb"/>
+      <circle cx="54000" cy="119" r="1344" fill="#1f6feb"/>
+      <circle cx="60000" cy="-288" r="1344" fill="#1f6feb"/>
+      <circle cx="72000" cy="300" r="1344" fill="#1f6feb"/>
+      <circle cx="84000" cy="-292" r="1344" fill="#1f6feb"/>
+      <circle cx="90000" cy="108" r="1344" fill="#1f6feb"/>
+      <circle cx="96000" cy="264" r="1344" fill="#1f6feb"/>
+      <circle cx="102000" cy="-176" r="1344" fill="#1f6feb"/>
+      <circle cx="108000" cy="-219" r="1344" fill="#1f6feb"/>
+      <circle cx="114000" cy="232" r="1344" fill="#1f6feb"/>
+      <circle cx="120000" cy="159" r="1344" fill="#1f6feb"/>
+      <circle cx="126000" cy="-273" r="1344" fill="#1f6feb"/>
+      <circle cx="138000" cy="296" r="1344" fill="#1f6feb"/>
+      <circle cx="150000" cy="-299" r="1344" fill="#1f6feb"/>
+      <circle cx="162000" cy="282" r="1344" fill="#1f6feb"/>
+      <circle cx="168000" cy="-137" r="1344" fill="#1f6feb"/>
+      <circle cx="174000" cy="-247" r="1344" fill="#1f6feb"/>
+      <circle cx="180000" cy="201" r="1344" fill="#1f6feb"/>
+      <circle cx="186000" cy="195" r="1344" fill="#1f6feb"/>
+      <circle cx="192000" cy="-251" r="1344" fill="#1f6feb"/>
+      <circle cx="198000" cy="-130" r="1344" fill="#1f6feb"/>
+      <circle cx="204000" cy="285" r="1344" fill="#1f6feb"/>
+      <circle cx="216000" cy="-299" r="1344" fill="#1f6feb"/>
+      <circle cx="228000" cy="294" r="1344" fill="#1f6feb"/>
+      <circle cx="234000" cy="-96" r="1344" fill="#1f6feb"/>
+      <circle cx="240000" cy="-269" r="1344" fill="#1f6feb"/>
+      <circle cx="240000" cy="140000" r="1344" fill="#1f6feb"/>
+      <circle cx="0" cy="140000" r="1344" fill="#1f6feb"/>
+      <circle cx="0" cy="0" r="1344" fill="#d1242f"/>
+      <circle cx="240000" cy="-269" r="1344" fill="#d1242f"/>
+      <circle cx="240000" cy="140000" r="1344" fill="#d1242f"/>
+      <circle cx="0" cy="140000" r="1344" fill="#d1242f"/>
+    </g>
+  </g>
+  <text x="-8640" y="198486.904" font-size="6988.799999999999" fill="#d0d7de" font-family="ui-monospace, monospace">— original: 43 vertices</text>
+    <text x="-8640" y="208620.66400000002" font-size="6988.799999999999" fill="#1f6feb" font-family="ui-monospace, monospace">— tolerancia 100 UM: 35 vertices</text>
+    <text x="-8640" y="218754.424" font-size="6988.799999999999" fill="#d1242f" font-family="ui-monospace, monospace">— tolerancia 1000 UM: 4 vertices</text>
+  <text x="-8640" y="234968.44" font-size="6150.143999999999" fill="#1f2328" font-family="ui-monospace, monospace">tol 100 UM -> desvio maximo MEDIDO 99.4 UM (tem que ficar abaixo da tolerancia)</text>
+    <text x="-8640" y="245102.2" font-size="6150.143999999999" fill="#1f2328" font-family="ui-monospace, monospace">tol 1000 UM -> desvio maximo MEDIDO 549.5 UM (tem que ficar abaixo da tolerancia)</text>
+    <text x="-8640" y="255235.96" font-size="6150.143999999999" fill="#1f2328" font-family="ui-monospace, monospace">Douglas-Peucker do clipper2; o motor so decide o que pode sumir (nunca ponto notavel nem grade point).</text>
+</svg>

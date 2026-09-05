@@ -1,0 +1,55 @@
+# CI headless — entrega da Parte 0 ("Testes rodando em CI headless").
+#
+# Nao ha banco de dados como servico aqui, e nao e simplificacao: a persistencia e
+# testada contra Postgres DE VERDADE via PGlite (Postgres compilado para WASM, em
+# processo) e contra SQLite pelo `node:sqlite`. Os dois rodam sem servidor, sem
+# porta e sem container — que e o que "headless" quer dizer.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node >= 22: o `node:sqlite` do executor local do Tauri e embutido a partir
+      # dessa versao, e o package.json ja exige isso em `engines`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Os testes rodam contra o FONTE (alias no vitest.config), entao nao dependem
+      # do build e falham rapido.
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # O `exports` do package.json e a saida do tsc sao contrato com a Fase 2 e
+      # com o Tauri. Este passo importa cada pacote pelo NOME e faz o motor
+      # calcular — importar sem executar nao provaria que o artefato funciona.
+      - name: Artefatos construidos
+        run: node scripts/verificar-dist.mjs
+
+      # As figuras da documentacao saem do motor. Se elas nao puderem mais ser
+      # geradas, a Parte 7 esta descrevendo um motor que nao existe mais.
+      - name: Figuras da documentacao
+        run: node scripts/gerar-figuras.mjs
+
+      # A demo importa o motor pelo FONTE e e a unica coisa aqui que roda no
+      # navegador: se uma assinatura do motor mudar, ela quebra no build, nao na
+      # mao de quem abrir a pagina.
+      - name: Demonstracao
+        run: npm run demo:build

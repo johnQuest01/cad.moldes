@@ -1,0 +1,395 @@
+/**
+ * Eventos (Parte 4).
+ *
+ * Toda edicao e um EVENTO, nunca um UPDATE destrutivo. O estado e o fold do log.
+ *
+ * D2 — o fold e funcao pura. Toda entropia (id, timestamp, autor) e gerada por
+ * QUEM EMITE e viaja no payload/envelope. `randomUUID()` dentro do fold faria o
+ * replay produzir IDs diferentes do snapshot e o teste de integridade falharia
+ * por construcao.
+ *
+ * Este arquivo cresce a cada bloco: so entram aqui os eventos das operacoes que
+ * ja existem. Declarar os 29 de uma vez criaria ramos mortos no fold.
+ * Eventos deste bloco (Bloco 1): estrutura do modelo, da peca e do contorno.
+ */
+import type {
+  DirecaoDobra,
+  Id,
+  TenantId,
+  TipoLinhaInterna,
+  TipoPique,
+  TipoPonto,
+  TipoSegmento,
+  Vetor2,
+  PropriedadesEncaixe,
+} from '../tipos.js';
+import type { UM } from '../unidades.js';
+
+/** Versao de schema aceita hoje. Migracao futura sem reprocessar errado. */
+export const VERSAO_SCHEMA_ATUAL = 1;
+
+/**
+ * Envelope comum a todo evento.
+ *
+ * `pecaId` e `null` em eventos de nivel de modelo — ParCostura vive no Modelo (D3)
+ * porque as arestas pareadas estao em pecas diferentes.
+ */
+export interface Envelope<TTipo extends string, TPayload> {
+  readonly id: Id;
+  readonly tenantId: TenantId;
+  readonly modeloId: Id;
+  readonly pecaId: Id | null;
+  readonly tipo: TTipo;
+  readonly payload: TPayload;
+  /** ISO 8601. Gerado por quem emite — nunca por `Date.now()` dentro do fold. */
+  readonly timestamp: string;
+  readonly autor: string;
+  readonly versaoSchema: number;
+}
+
+export type CriarModelo = Envelope<
+  'CriarModelo',
+  {
+    readonly nome: string;
+    readonly tamanhos: readonly string[];
+    readonly tamanhoBase: string;
+  }
+>;
+
+export type CriarPeca = Envelope<
+  'CriarPeca',
+  {
+    readonly nome: string;
+    readonly encaixe: PropriedadesEncaixe;
+  }
+>;
+
+export type CriarPonto = Envelope<
+  'CriarPonto',
+  {
+    readonly pontoId: Id;
+    readonly x: UM;
+    readonly y: UM;
+    readonly tipo: TipoPonto;
+    readonly nome?: string;
+  }
+>;
+
+/** Move um ponto para uma coordenada ABSOLUTA. O delta relativo e ModificarPonto (Bloco 7). */
+export type MoverPonto = Envelope<
+  'MoverPonto',
+  {
+    readonly pontoId: Id;
+    readonly x: UM;
+    readonly y: UM;
+  }
+>;
+
+export type DefinirAresta = Envelope<
+  'DefinirAresta',
+  {
+    readonly arestaId: Id;
+    readonly pontoInicioId: Id;
+    readonly pontoFimId: Id;
+  }
+>;
+
+/**
+ * Cria ou redefine um segmento. Segmento novo e ANEXADO ao fim do contorno —
+ * e a ordem em que o modelista desenha. Splice no meio e InserirPonto (Bloco 13).
+ */
+export type DefinirSegmento = Envelope<
+  'DefinirSegmento',
+  {
+    readonly segmentoId: Id;
+    readonly arestaId: Id;
+    readonly de: Id;
+    readonly para: Id;
+    readonly tipo: TipoSegmento;
+    readonly controles?: readonly [Vetor2, Vetor2];
+  }
+>;
+
+/** Margem de costura por ARESTA. Arestas diferentes podem ter margens diferentes. */
+export type DefinirMargem = Envelope<
+  'DefinirMargem',
+  {
+    readonly arestaId: Id;
+    readonly margemUM: UM;
+  }
+>;
+
+/**
+ * D3: vive no Modelo — `pecaId` e null.
+ *
+ * D9: `embebidoUM` e OBRIGATORIO no payload, nao tem default. Declarar "esta
+ * costura fecha exata" (zero) e "esta copa embebe 25 mm" sao decisoes de
+ * modelagem diferentes, e o evento tem que registrar qual delas foi tomada —
+ * assumir zero por omissao esconderia a manga que ficou sem embebido.
+ */
+export type DefinirParCostura = Envelope<
+  'DefinirParCostura',
+  {
+    readonly parId: Id;
+    readonly arestaA: Id;
+    readonly arestaB: Id;
+    readonly embebidoUM: UM;
+  }
+>;
+
+export type DefinirMetadados = Envelope<
+  'DefinirMetadados',
+  {
+    readonly nome: string;
+    readonly descricao?: string;
+  }
+>;
+
+/**
+ * Move um ponto por DELTA, com ou sem arrasto dos vizinhos (Parte 3, operacao 9).
+ * O `MoverPonto` acima e coordenada absoluta; este e a edicao do modelista.
+ *
+ * `nVizinhos` viaja no payload mesmo no modo discreto: o evento tem que registrar
+ * exatamente o que o modelista pediu, senao o replay de um log antigo depende de
+ * qual era o padrao da interface naquele dia.
+ */
+export type ModificarPonto = Envelope<
+  'ModificarPonto',
+  {
+    readonly pontoId: Id;
+    readonly dx: UM;
+    readonly dy: UM;
+    readonly modo: 'discreto' | 'proporcional';
+    readonly nVizinhos: number;
+  }
+>;
+
+/**
+ * Marca um ponto do contorno como GRADUAVEL (inegociavel 4: grade point e cidadao
+ * de primeira classe, nao um extra da fase de graduacao).
+ *
+ * Marcar sem dar regra e legitimo e tem significado: pela D7 o grade point sem
+ * regra fica PARADO — e assim que se declara a ancora da peca.
+ */
+export type MarcarGradePoint = Envelope<
+  'MarcarGradePoint',
+  {
+    readonly gradePointId: Id;
+    readonly pontoId: Id;
+  }
+>;
+
+/**
+ * Regra de graduacao: o incremento `(dx, dy)` de um grade point ENTRE DOIS
+ * TAMANHOS CONSECUTIVOS da grade. Regra e DADO (linha de tabela), nunca codigo.
+ *
+ * Vive no Modelo (como o ParCostura), por isso `pecaId` e null: a grade de
+ * tamanhos e do modelo, e o mesmo modelo grada pecas diferentes.
+ */
+export type DefinirRegraGraduacao = Envelope<
+  'DefinirRegraGraduacao',
+  {
+    readonly regraId: Id;
+    readonly pontoGraduacaoId: Id;
+    readonly deTamanho: string;
+    readonly paraTamanho: string;
+    readonly dx: UM;
+    readonly dy: UM;
+  }
+>;
+
+/**
+ * Eixo de dobra — entidade PERSISTIDA (Parte 3, op. 14): sobrevive a edicao,
+ * gradua em posicao relativa e exporta como linha interna no DXF.
+ */
+export type DefinirEixoDobra = Envelope<
+  'DefinirEixoDobra',
+  {
+    readonly eixoId: Id;
+    readonly p1: Vetor2;
+    readonly p2: Vetor2;
+    readonly direcao: DirecaoDobra;
+    readonly profundidadeUM?: UM;
+  }
+>;
+
+export type RemoverEixoDobra = Envelope<'RemoverEixoDobra', { readonly eixoId: Id }>;
+
+/** Espelha a peca inteira num eixo arbitrario (Parte 2, op. 5). */
+export type EspelharPeca = Envelope<
+  'EspelharPeca',
+  {
+    readonly p1: Vetor2;
+    readonly p2: Vetor2;
+  }
+>;
+
+export type RotacionarPeca = Envelope<
+  'RotacionarPeca',
+  {
+    readonly centro: Vetor2;
+    readonly anguloGraus: number;
+  }
+>;
+
+export type TransladarPeca = Envelope<
+  'TransladarPeca',
+  {
+    readonly dx: UM;
+    readonly dy: UM;
+  }
+>;
+
+/**
+ * Acrescenta uma linha interna (fio, pence, furo, referencia de graduacao).
+ *
+ * `pontoIds` aponta para `Ponto` que ja existem na peca (D10) — normalmente
+ * criados com `CriarPonto` de tipo `interno`. E o que permite marcar o fio como
+ * grade point e grada-lo pela mesma regra do contorno.
+ */
+export type AdicionarLinhaInterna = Envelope<
+  'AdicionarLinhaInterna',
+  {
+    readonly linhaId: Id;
+    readonly tipo: TipoLinhaInterna;
+    readonly pontoIds: readonly Id[];
+  }
+>;
+
+/**
+ * Crava um pique na aresta, na posicao `s` de COMPRIMENTO DE ARCO.
+ *
+ * `s` — e nao coordenada — porque e o que faz o pique acompanhar a peca: gradua
+ * junto, sobrevive a edicao do vertice e ao espelhamento (que inverte `s -> 1-s`).
+ * Guardar x/y seria descolar o pique da aresta no primeiro tamanho novo.
+ *
+ * As dimensoes vem no payload em vez de default no fold, porque o fold e puro e
+ * o padrao pode mudar de ateliê para ateliê; quem emite resolve (ha
+ * `ALTURA_PADRAO_DO_PIQUE_UM` / `LARGURA_PADRAO_DO_PIQUE_UM` para isso).
+ */
+export type AdicionarPique = Envelope<
+  'AdicionarPique',
+  {
+    readonly piqueId: Id;
+    readonly arestaId: Id;
+    readonly s: number;
+    readonly tipo: TipoPique;
+    readonly alturaUM: UM;
+    readonly larguraUM: UM;
+    readonly anguloGraus: number;
+  }
+>;
+
+/** Arrasta o pique ao longo da mesma aresta. */
+export type MoverPique = Envelope<'MoverPique', { readonly piqueId: Id; readonly s: number }>;
+
+/** Tira o pique da peca. */
+export type RemoverPique = Envelope<'RemoverPique', { readonly piqueId: Id }>;
+
+/** Recorte interno (camada 11 do DXF ASTM): anel FECHADO dentro da peca. */
+export type AdicionarRecorte = Envelope<
+  'AdicionarRecorte',
+  {
+    readonly recorteId: Id;
+    readonly pontoIds: readonly Id[];
+  }
+>;
+
+/**
+ * Insere um ponto no meio de um segmento, na posicao `s` de COMPRIMENTO DE ARCO.
+ *
+ * `prefixoId` e a entropia que vem de fora (D2): o fold deriva dele os ids do
+ * ponto e do segmento novos, de forma deterministica, para o replay reproduzir
+ * exatamente os mesmos ids do snapshot.
+ */
+export type InserirPonto = Envelope<
+  'InserirPonto',
+  {
+    readonly segmentoId: Id;
+    readonly s: number;
+    readonly prefixoId: Id;
+  }
+>;
+
+/** Remove um ponto do meio de uma aresta, fundindo os dois segmentos vizinhos. */
+export type ExcluirPonto = Envelope<
+  'ExcluirPonto',
+  {
+    readonly pontoId: Id;
+  }
+>;
+
+/** Converte um segmento entre reta e curva, preservando os extremos. */
+export type ConverterSegmento = Envelope<
+  'ConverterSegmento',
+  {
+    readonly segmentoId: Id;
+    readonly para: TipoSegmento;
+  }
+>;
+
+/** Fillet: troca o canto por um arco de raio `raioUM`. */
+export type ArredondarVertice = Envelope<
+  'ArredondarVertice',
+  {
+    readonly pontoId: Id;
+    readonly raioUM: UM;
+    readonly prefixoId: Id;
+  }
+>;
+
+/** Chanfro: troca o canto por uma reta que corta os dois lados a `distanciaUM`. */
+export type ChanfrarVertice = Envelope<
+  'ChanfrarVertice',
+  {
+    readonly pontoId: Id;
+    readonly distanciaUM: UM;
+    readonly prefixoId: Id;
+  }
+>;
+
+/**
+ * Douglas-Peucker no contorno com tolerancia EXPLICITA.
+ *
+ * A tolerancia viaja no payload em vez de sair de uma constante: simplificar e
+ * destrutivo, e o log tem que registrar com que criterio o modelista aceitou
+ * perder pontos naquele dia.
+ */
+export type SimplificarContorno = Envelope<
+  'SimplificarContorno',
+  {
+    readonly toleranciaUM: UM;
+  }
+>;
+
+export type Evento =
+  | CriarModelo
+  | CriarPeca
+  | CriarPonto
+  | MoverPonto
+  | DefinirAresta
+  | DefinirSegmento
+  | DefinirMargem
+  | DefinirParCostura
+  | DefinirMetadados
+  | ModificarPonto
+  | AdicionarLinhaInterna
+  | AdicionarRecorte
+  | AdicionarPique
+  | MoverPique
+  | RemoverPique
+  | DefinirEixoDobra
+  | RemoverEixoDobra
+  | EspelharPeca
+  | RotacionarPeca
+  | TransladarPeca
+  | InserirPonto
+  | ExcluirPonto
+  | ConverterSegmento
+  | ArredondarVertice
+  | ChanfrarVertice
+  | SimplificarContorno
+  | MarcarGradePoint
+  | DefinirRegraGraduacao;
+
+export type TipoEvento = Evento['tipo'];

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-7200 0 134400 147468.47999999998" width="760">
+  <title>Fillet de 25 mm e chanfro de 25 mm (operacao 10)</title>
+  <rect x="-7200" y="0" width="134400" height="147468.47999999998" fill="#ffffff"/>
+  <text x="-4320" y="5826.911999999998" font-size="4018.5599999999995" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Fillet de 25 mm e chanfro de 25 mm (operacao 10)</text>
+  <g transform="translate(0 123654.144) scale(1 -1)">
+    <g transform="translate(0 16827.072)">
+      <path d="M0 0 L120000 0 L120000 90000 L0 90000 Z" fill="none" stroke="#d0d7de" stroke-width="470.40000000000003" stroke-linejoin="round" stroke-dasharray="1478.3999999999999 1075.2"/>
+      <path d="M0 0 L95000 0 L97556 129 L100039 508 L102435 1124 L104732 1965 L106917 3017 L108978 4269 L110903 5709 L112678 7322 L114292 9097 L115731 11022 L116983 13083 L118036 15269 L118876 17565 L119492 19961 L119871 22444 L120000 25000 L120000 65000 L107500 77500 L95000 90000 L0 90000 Z" fill="none" stroke="#1f6feb" stroke-width="470.40000000000003" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="672" fill="#1f6feb"/>
+      <circle cx="95000" cy="0" r="672" fill="#1f6feb"/>
+      <circle cx="97556" cy="129" r="672" fill="#1f6feb"/>
+      <circle cx="100039" cy="508" r="672" fill="#1f6feb"/>
+      <circle cx="102435" cy="1124" r="672" fill="#1f6feb"/>
+      <circle cx="104732" cy="1965" r="672" fill="#1f6feb"/>
+      <circle cx="106917" cy="3017" r="672" fill="#1f6feb"/>
+      <circle cx="108978" cy="4269" r="672" fill="#1f6feb"/>
+      <circle cx="110903" cy="5709" r="672" fill="#1f6feb"/>
+      <circle cx="112678" cy="7322" r="672" fill="#1f6feb"/>
+      <circle cx="114292" cy="9097" r="672" fill="#1f6feb"/>
+      <circle cx="115731" cy="11022" r="672" fill="#1f6feb"/>
+      <circle cx="116983" cy="13083" r="672" fill="#1f6feb"/>
+      <circle cx="118036" cy="15269" r="672" fill="#1f6feb"/>
+      <circle cx="118876" cy="17565" r="672" fill="#1f6feb"/>
+      <circle cx="119492" cy="19961" r="672" fill="#1f6feb"/>
+      <circle cx="119871" cy="22444" r="672" fill="#1f6feb"/>
+      <circle cx="120000" cy="25000" r="672" fill="#1f6feb"/>
+      <circle cx="120000" cy="65000" r="672" fill="#1f6feb"/>
+      <circle cx="107500" cy="77500" r="672" fill="#1f6feb"/>
+      <circle cx="95000" cy="90000" r="672" fill="#1f6feb"/>
+      <circle cx="0" cy="90000" r="672" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-4320" y="119093.952" font-size="3494.3999999999996" fill="#d0d7de" font-family="ui-monospace, monospace">— contorno original</text>
+    <text x="-4320" y="124160.83200000001" font-size="3494.3999999999996" fill="#1f6feb" font-family="ui-monospace, monospace">— fillet no canto direito-baixo, chanfro no direito-cima</text>
+  <text x="-4320" y="132267.84" font-size="3075.0719999999997" fill="#1f2328" font-family="ui-monospace, monospace">fillet: tangencias em (95, 0) e (120, 25) mm</text>
+    <text x="-4320" y="137334.72" font-size="3075.0719999999997" fill="#1f2328" font-family="ui-monospace, monospace">desvio radial contra o circulo ideal: 7.565 UM (D1 preve ~0,027% de 25000 UM)</text>
+    <text x="-4320" y="142401.6" font-size="3075.0719999999997" fill="#1f2328" font-family="ui-monospace, monospace">chanfro: (120, 65) -> (95, 90) mm</text>
+</svg>

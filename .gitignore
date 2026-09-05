@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+
+# rascunhos de investigacao (os oraculos do verb, por exemplo)
+.scratch/

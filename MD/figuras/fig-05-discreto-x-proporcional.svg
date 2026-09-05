@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-114400 0 268800 314936.95999999996" width="760">
+  <title>Modificar ponto: discreto x proporcional (N = 4)</title>
+  <rect x="-114400" y="0" width="268800" height="314936.95999999996" fill="#ffffff"/>
+  <text x="-108640" y="11653.823999999997" font-size="8037.119999999999" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Modificar ponto: discreto x proporcional (N = 4)</text>
+  <g transform="translate(0 267308.288) scale(1 -1)">
+    <g transform="translate(0 133654.144)">
+      <path d="M100000 0 L86603 50000 L50000 86603 L0 100000 L-50000 86603 L-86603 50000 L-100000 0 L-86603 -50000 L-50000 -86603 L0 -100000 L50000 -86603 L86603 -50000 Z" fill="none" stroke="#d0d7de" stroke-width="940.8000000000001" stroke-linejoin="round" stroke-dasharray="2956.7999999999997 2150.4"/>
+      <path d="M140000 0 L86603 50000 L50000 86603 L0 100000 L-50000 86603 L-86603 50000 L-100000 0 L-86603 -50000 L-50000 -86603 L0 -100000 L50000 -86603 L86603 -50000 Z" fill="none" stroke="#d1242f" stroke-width="940.8000000000001" stroke-linejoin="round"/>
+      <path d="M140000 0 L122783 50000 L76180 86603 L13820 100000 L-46180 86603 L-86603 50000 L-100000 0 L-86603 -50000 L-46180 -86603 L13820 -100000 L76180 -86603 L122783 -50000 Z" fill="none" stroke="#1f6feb" stroke-width="940.8000000000001" stroke-linejoin="round"/>
+      <circle cx="140000" cy="0" r="1344" fill="#d1242f"/>
+      <circle cx="86603" cy="50000" r="1344" fill="#d1242f"/>
+      <circle cx="50000" cy="86603" r="1344" fill="#d1242f"/>
+      <circle cx="0" cy="100000" r="1344" fill="#d1242f"/>
+      <circle cx="-50000" cy="86603" r="1344" fill="#d1242f"/>
+      <circle cx="-86603" cy="50000" r="1344" fill="#d1242f"/>
+      <circle cx="-100000" cy="0" r="1344" fill="#d1242f"/>
+      <circle cx="-86603" cy="-50000" r="1344" fill="#d1242f"/>
+      <circle cx="-50000" cy="-86603" r="1344" fill="#d1242f"/>
+      <circle cx="0" cy="-100000" r="1344" fill="#d1242f"/>
+      <circle cx="50000" cy="-86603" r="1344" fill="#d1242f"/>
+      <circle cx="86603" cy="-50000" r="1344" fill="#d1242f"/>
+      <circle cx="140000" cy="0" r="1344" fill="#1f6feb"/>
+      <circle cx="122783" cy="50000" r="1344" fill="#1f6feb"/>
+      <circle cx="76180" cy="86603" r="1344" fill="#1f6feb"/>
+      <circle cx="13820" cy="100000" r="1344" fill="#1f6feb"/>
+      <circle cx="-46180" cy="86603" r="1344" fill="#1f6feb"/>
+      <circle cx="-86603" cy="50000" r="1344" fill="#1f6feb"/>
+      <circle cx="-100000" cy="0" r="1344" fill="#1f6feb"/>
+      <circle cx="-86603" cy="-50000" r="1344" fill="#1f6feb"/>
+      <circle cx="-46180" cy="-86603" r="1344" fill="#1f6feb"/>
+      <circle cx="13820" cy="-100000" r="1344" fill="#1f6feb"/>
+      <circle cx="76180" cy="-86603" r="1344" fill="#1f6feb"/>
+      <circle cx="122783" cy="-50000" r="1344" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-108640" y="258187.904" font-size="6988.799999999999" fill="#d0d7de" font-family="ui-monospace, monospace">— original</text>
+    <text x="-108640" y="268321.664" font-size="6988.799999999999" fill="#d1242f" font-family="ui-monospace, monospace">— discreto: so o alvo anda</text>
+    <text x="-108640" y="278455.424" font-size="6988.799999999999" fill="#1f6feb" font-family="ui-monospace, monospace">— proporcional: f(i) = (1+cos(pi i/(N+1)))/2</text>
+  <text x="-108640" y="294669.44" font-size="6150.143999999999" fill="#1f2328" font-family="ui-monospace, monospace">dx = 40 mm em pt-0, N = 4. Vizinhos 1..4, em UM: 36180 / 26180 / 13820 / 3820</text>
+    <text x="-108640" y="304803.2" font-size="6150.143999999999" fill="#1f2328" font-family="ui-monospace, monospace">fracoes f(i): 0.9045 / 0.6545 / 0.3455 / 0.0955  | vizinho 5 andou 0</text>
+</svg>

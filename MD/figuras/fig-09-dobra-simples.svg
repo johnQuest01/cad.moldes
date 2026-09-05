@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-83200 0 166400 305996.16" width="760">
+  <title>Dobra simples: a peca desenhada e a METADE (operacao 14)</title>
+  <rect x="-83200" y="0" width="166400" height="305996.16" fill="#ffffff"/>
+  <text x="-77920" y="7214.271999999998" font-size="4975.359999999999" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Dobra simples: a peca desenhada e a METADE (operacao 14)</text>
+  <g transform="translate(0 270238.464) scale(1 -1)">
+    <g transform="translate(0 35119.231999999996)">
+      <path d="M70000 -10000 L70000 210000 L-70000 210000 L-70000 -10000 Z" fill="none" stroke="#d1242f" stroke-width="582.4" stroke-linejoin="round"/>
+      <path d="M60000 0 L60000 200000 L-60000 200000 L-60000 0 Z" fill="none" stroke="#1f6feb" stroke-width="582.4" stroke-linejoin="round"/>
+      <path d="M0 0 L60000 0 L60000 200000 L0 200000 Z" fill="none" stroke="#8250df" stroke-width="582.4" stroke-linejoin="round" stroke-dasharray="1830.3999999999999 1331.2"/>
+      <circle cx="60000" cy="0" r="832" fill="#1f6feb"/>
+      <circle cx="60000" cy="200000" r="832" fill="#1f6feb"/>
+      <circle cx="-60000" cy="200000" r="832" fill="#1f6feb"/>
+      <circle cx="-60000" cy="0" r="832" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-77920" y="264592.512" font-size="4326.4" fill="#d1242f" font-family="ui-monospace, monospace">— linha de corte desdobrada</text>
+    <text x="-77920" y="270865.792" font-size="4326.4" fill="#1f6feb" font-family="ui-monospace, monospace">— costura desdobrada</text>
+    <text x="-77920" y="277139.072" font-size="4326.4" fill="#8250df" font-family="ui-monospace, monospace">— a metade desenhada</text>
+  <text x="-77920" y="287176.31999999995" font-size="3807.2319999999995" fill="#1f2328" font-family="ui-monospace, monospace">metade 60 mm -> desdobrada 120 mm (o dobro exato)</text>
+    <text x="-77920" y="293449.6" font-size="3807.2319999999995" fill="#1f2328" font-family="ui-monospace, monospace">area: 24000000000 UM2 = 2 x 12000000000 UM2</text>
+    <text x="-77920" y="299722.88" font-size="3807.2319999999995" fill="#1f2328" font-family="ui-monospace, monospace">O consumo de tecido usa a DESDOBRADA. Medir a metade compra metade do necessario.</text>
+</svg>

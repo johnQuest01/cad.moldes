@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-25000 0 150000 322412.5" width="760">
+  <title>Bainha 40 mm, demais lados 10 mm</title>
+  <rect x="-25000" y="0" width="150000" height="322412.5" fill="#ffffff"/>
+  <text x="-19000" y="6503.249999999999" font-size="4485" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Bainha 40 mm, demais lados 10 mm</text>
+  <g transform="translate(0 301489) scale(1 -1)">
+    <g transform="translate(0 65744.5)">
+      <path d="M110000 210000 L-10000 210000 L-10000 -40000 L110000 -40000 Z" fill="none" stroke="#d1242f" stroke-width="525" stroke-linejoin="round"/>
+      <path d="M0 0 L100000 0 L100000 200000 L0 200000 Z" fill="none" stroke="#1f6feb" stroke-width="525" stroke-linejoin="round"/>
+      <circle cx="0" cy="0" r="750" fill="#1f6feb"/>
+      <circle cx="100000" cy="0" r="750" fill="#1f6feb"/>
+      <circle cx="100000" cy="200000" r="750" fill="#1f6feb"/>
+      <circle cx="0" cy="200000" r="750" fill="#1f6feb"/>
+    </g>
+  </g>
+  <text x="-19000" y="296399.5" font-size="3900" fill="#d1242f" font-family="ui-monospace, monospace">— linha de corte (margem por aresta)</text>
+    <text x="-19000" y="302054.5" font-size="3900" fill="#1f6feb" font-family="ui-monospace, monospace">— linha de costura</text>
+  <text x="-19000" y="311102.5" font-size="3432" fill="#1f2328" font-family="ui-monospace, monospace">corte 120 x 250 mm  (esperado 120 x 250)</text>
+    <text x="-19000" y="316757.5" font-size="3432" fill="#1f2328" font-family="ui-monospace, monospace">cantos da bainha: (-10, -40) (110, -40)</text>
+</svg>

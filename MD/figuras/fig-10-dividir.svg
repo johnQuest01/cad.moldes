@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-13800 0 257600 340147.92" width="760">
+  <title>Dividir: cada parte ganha margem propria na aresta nova (operacao 15)</title>
+  <rect x="-13800" y="0" width="257600" height="340147.92" fill="#ffffff"/>
+  <text x="-8280" y="11168.247999999998" font-size="7702.239999999999" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Dividir: cada parte ganha margem propria na aresta nova (operacao 15)</text>
+  <g transform="translate(0 294503.776) scale(1 -1)">
+    <g transform="translate(0 62251.88799999999)">
+      <path d="M0 0 L100000 0 L100000 200000 L0 200000 Z" fill="none" stroke="#8250df" stroke-width="901.6" stroke-linejoin="round" stroke-dasharray="2833.6 2060.8"/>
+      <path d="M230000 200000 L130000 200000 L130000 90000 L230000 90000 Z" fill="none" stroke="#d1242f" stroke-width="901.6" stroke-linejoin="round"/>
+      <path d="M230000 80000 L130000 80000 L130000 -30000 L230000 -30000 Z" fill="none" stroke="#d1242f" stroke-width="901.6" stroke-linejoin="round"/>
+      
+    </g>
+  </g>
+  <text x="-8280" y="285763.408" font-size="6697.599999999999" fill="#8250df" font-family="ui-monospace, monospace">— peca inteira (100 x 200 mm)</text>
+    <text x="-8280" y="295474.928" font-size="6697.599999999999" fill="#d1242f" font-family="ui-monospace, monospace">— linha de corte das duas partes (100 x 110 mm cada)</text>
+  <text x="-8280" y="311013.36" font-size="5893.888" fill="#1f2328" font-family="ui-monospace, monospace">area da inteira 20000000000 UM2 | soma das partes cortadas 22000000000 UM2</text>
+    <text x="-8280" y="320724.88" font-size="5893.888" fill="#1f2328" font-family="ui-monospace, monospace">as partes consomem 2000000000 UM2 A MAIS — e isso e o certo</text>
+    <text x="-8280" y="330436.4" font-size="5893.888" fill="#1f2328" font-family="ui-monospace, monospace">Sem a margem nova, as partes sairiam 100 x 100 e a peca nao fecharia na costura.</text>
+</svg>

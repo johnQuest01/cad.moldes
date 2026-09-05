@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-23200 0 146400 309871.72000000003" width="760">
+  <title>Pique pelo cursor: coordenada -> (aresta, s) -> projecao no corte</title>
+  <rect x="-23200" y="0" width="146400" height="309871.72000000003" fill="#ffffff"/>
+  <text x="-17920" y="6347.172" font-size="4377.36" fill="#1f2328" font-family="ui-monospace, monospace" font-weight="600">Pique pelo cursor: coordenada -> (aresta, s) -> projecao no corte</text>
+  <g transform="translate(0 267373.26399999997) scale(1 -1)">
+    <g transform="translate(0 33686.632)">
+      <path d="M110000 210000 L-10000 210000 L-10000 -10000 L110000 -10000 Z" fill="none" stroke="#d1242f" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M0 0 L100000 0 L100000 200000 L0 200000 Z" fill="none" stroke="#1f6feb" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M100000 50000 L110000 50000" fill="none" stroke="#d0d7de" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M110000 55000 L103650 50000 L110000 45000" fill="none" stroke="#8250df" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M100000 150000 L110000 150000" fill="none" stroke="#d0d7de" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M110000 155000 L103650 150000 L110000 145000" fill="none" stroke="#8250df" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M100000 180000 L110000 180000" fill="none" stroke="#d0d7de" stroke-width="512.4" stroke-linejoin="round"/>
+      <path d="M110000 185000 L103650 180000 L110000 175000" fill="none" stroke="#8250df" stroke-width="512.4" stroke-linejoin="round"/>
+      <circle cx="110000" cy="55000" r="732" fill="#8250df"/>
+      <circle cx="103650" cy="50000" r="732" fill="#8250df"/>
+      <circle cx="110000" cy="45000" r="732" fill="#8250df"/>
+      <circle cx="110000" cy="155000" r="732" fill="#8250df"/>
+      <circle cx="103650" cy="150000" r="732" fill="#8250df"/>
+      <circle cx="110000" cy="145000" r="732" fill="#8250df"/>
+      <circle cx="110000" cy="185000" r="732" fill="#8250df"/>
+      <circle cx="103650" cy="180000" r="732" fill="#8250df"/>
+      <circle cx="110000" cy="175000" r="732" fill="#8250df"/>
+    </g>
+  </g>
+  <text x="-17920" y="262405.912" font-size="3806.3999999999996" fill="#d1242f" font-family="ui-monospace, monospace">— linha de corte (margem 10 mm)</text>
+    <text x="-17920" y="267925.19200000004" font-size="3806.3999999999996" fill="#1f6feb" font-family="ui-monospace, monospace">— linha de costura (o pique e ancorado aqui)</text>
+    <text x="-17920" y="273444.472" font-size="3806.3999999999996" fill="#d0d7de" font-family="ui-monospace, monospace">— projecao perpendicular costura -> corte</text>
+    <text x="-17920" y="278963.75200000004" font-size="3806.3999999999996" fill="#8250df" font-family="ui-monospace, monospace">— pique V, cortado na linha de CORTE</text>
+  <text x="-17920" y="287794.60000000003" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">clique em (103, 150) mm -> aresta "ar-1", s = 0.750000, a 3 mm do contorno</text>
+    <text x="-17920" y="293313.88000000006" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">a projecao anda 10, 10, 10 mm — exatamente a margem da aresta</text>
+    <text x="-17920" y="298833.16000000003" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">s nao muda com o tamanho: P: s = 0.7500 | M: s = 0.7500 | G: s = 0.7500 — o que muda e a coordenada</text>
+    <text x="-17920" y="304352.44000000006" font-size="3349.6319999999996" fill="#1f2328" font-family="ui-monospace, monospace">dimensao real do notcher: 6,35 x 1,59 mm; o V da figura esta com 5 mm de boca para ser visivel</text>
+</svg>
