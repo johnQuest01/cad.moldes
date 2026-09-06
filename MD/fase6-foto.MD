@@ -6,9 +6,10 @@
 > Esta é a porta de entrada que falta. Hoje o molde entra desenhado, por DXF-AAMA/ASTM ou pelo log
 > de eventos. Nenhuma dessas serve para a confecção que tem duzentos moldes de papel numa gaveta.
 
-Pacote a criar: `@cad/foto`. **Nenhum número aqui foi medido ainda** — este documento é a
-especificação normativa, escrita antes do código, e cada número que ele exige está marcado como
-`[A MEDIR]`. É a regra da Parte 0: "passou" sem o número não conta.
+Pacote: [`@cad/foto`](../packages/foto/). Este documento é a especificação normativa, escrita
+**antes** do código. A primeira entrega — o quadro de calibração e a homografia — já está feita e
+**medida** (8 testes); tudo que ainda depende de uma foto de verdade está marcado `[A MEDIR]`. É a
+regra da Parte 0: "passou" sem o número não conta.
 
 ---
 
@@ -38,8 +39,18 @@ Três razões, e a terceira é a que decide:
    ~0,25 % a 2 m com ímã de 5 mm, que dá **1,8 mm** numa peça de 700 mm. Reprova sozinho.
 2. **Trabalho zero por foto.** A parede não se mexe. O quadro está sempre lá.
 3. **Base larga.** O erro de escala é aproximadamente *erro de detecção em pixels ÷ tamanho da
-   referência em pixels*. Uma base de 1200 mm contra um ímã de 20 mm é 60× melhor. Não é detalhe —
-   é a diferença entre 0,3 mm e 7 mm de erro.
+   referência em pixels*. Isto agora está **medido**, no quadro real de 138 × 72 cm, com câmera a
+   2,5 m e 12 graus de inclinação, e o efeito de **1 px** de erro na detecção medido numa peça de
+   700 mm:
+
+   | Referência | Erro numa peça de 700 mm |
+   |---|---|
+   | **Quadro da parede (1380 mm)** | **0,218 mm** ✓ |
+   | Ímã de 20 mm | **14,906 mm** ✗ |
+
+   **68× melhor.** Não é diferença de refinamento: com o ímã como referência, um único pixel de
+   erro já produz quinze milímetros — quinze vezes a tolerância do ofício. A referência pequena
+   não é pior, é inviável.
 
 > É a mesma razão pela qual o quadro de calibração do Digiflash é **grande**, e não um adesivo.
 
@@ -48,12 +59,19 @@ Três razões, e a terceira é a que decide:
 Ímã cinza é igual a ímã cinza. Se o sistema não souber **qual canto é qual**, a homografia sai
 espelhada ou girada — e um molde espelhado é catastrófico: vira a manga do lado errado.
 
-Cada marcador de referência leva um **adesivo impresso com código** (ArUco 4×4, quatro códigos
-diferentes). Imprime-se uma folha, uma vez, na vida. Isso resolve identidade, ordem e orientação
-de uma vez, e ainda dá detecção sub-pixel de graça.
+Isto está **medido**, e o resultado é o pior tipo possível: com dois cantos trocados, um ponto que
+está a 200 mm da borda é lido a **1180 mm** — espelhado —, e o **resíduo de reprojeção continua
+exatamente zero**. A conta fecha. Nada na tela denuncia. É o defeito que só aparece na mesa de
+corte, depois do tecido cortado.
 
-Não é uma lousa: são quatro adesivos do tamanho de uma moeda, colados nos ímãs que já ficam na
-parede.
+Duas saídas, nesta ordem de preferência:
+
+1. **O quadro já tem padrão de borda.** O quadro do ateliê (138 × 72 cm) tem a faixa branca
+   recortada em semicírculos sobre o preto. Esse padrão **é** o alvo: dá os quatro cantos, dá
+   orientação, e dá dezenas de pontos em vez de quatro — o que derruba ainda mais o erro de
+   detecção, porque o ajuste passa a ser por mínimos quadrados sobre a borda inteira. É o caminho.
+2. **Se o quadro não tiver padrão**, quatro adesivos ArUco 4×4 colados nos ímãs de referência. Uma
+   folha impressa, uma vez na vida — quatro adesivos do tamanho de uma moeda, não uma lousa.
 
 ### I4. A linha fotografada é o CONTORNO, e a margem cresce para FORA
 
@@ -131,14 +149,20 @@ e o molde entra com esse aviso colado nele. Precisão não medida não vira núm
 | **Ímãs** | seguram o papel plano contra um plano de verdade |
 | **Vários moldes de uma vez** | uma foto pode digitalizar a parede inteira |
 
-### O que precisa ser montado (uma vez)
+### O quadro do ateliê
 
-1. **Quatro ímãs de referência** fixos na parede, formando um retângulo. Sugestão: ~1200 × 800 mm,
-   ou o maior que couber com folga em volta dos moldes.
-2. **Adesivo ArUco** em cada um (I3).
-3. **Medir com trena: largura, altura e as DUAS diagonais.** Se as diagonais não baterem, não é
-   retângulo, e a homografia sai torta sem avisar. O app confere e recusa a calibração.
-4. Digitar as quatro medidas no app. Fim da calibração.
+O ateliê **já tem** o quadro: fundo preto de **138 × 72 cm** com faixa branca recortada em
+semicírculos na borda. Isso resolve o item mais caro da fase antes de ela começar.
+
+Montagem (uma vez):
+
+1. **Medir com trena: largura, altura e as DUAS diagonais.** As medidas nominais (1380 × 720) são
+   ponto de partida, não verdade: quadro entorta, borda descola, e o rótulo do fabricante é
+   arredondado. Se as diagonais não fecham, não é retângulo, e a homografia sai torta sem avisar. O
+   app confere e recusa a calibração — e a conferência inclui Pitágoras, que é o que pega um lado
+   **digitado errado** quando as duas diagonais concordam entre si.
+2. Digitar as quatro medidas no app. Fim da calibração.
+3. Se um dia o quadro for trocado por um sem padrão de borda: quatro adesivos ArUco (I3).
 
 ### O protocolo da foto
 
@@ -233,6 +257,21 @@ o que se está medindo é o conjunto.
 | T8 | Foto **tremida / desfocada** | tem que RECUSAR, não entregar contorno ondulado |
 | T9 | Digitaliza → exporta DXF → reimporta | área igual, como no round-trip da Fase 3 |
 | T10 | Peça digitalizada entra no **encaixe** e no **HPGL** | fecha o ciclo: foto → tecido |
+### Já medido (`@cad/foto`, 8 testes)
+
+O que não depende de foto nenhuma já está provado, com câmera de furo de agulha simulada — a 2,5 m,
+inclinada 12 graus, sobre o quadro real de 138 × 72 cm (1,165 px/mm):
+
+| | Resultado |
+|---|---|
+| Pixel → milímetro, em 15 pontos espalhados pelo quadro | **erro 0 UM** — só o arredondamento para inteiro |
+| Resíduo de reprojeção nos quatro cantos | **0,000 UM** |
+| 1 px de erro, referência = quadro de 1380 mm | **0,218 mm** numa peça de 700 mm |
+| 1 px de erro, referência = ímã de 20 mm | **14,906 mm** — 68× pior |
+| Quatro pontos alinhados | recusado |
+| Dois cantos trocados | ponto de 200 mm lido a **1180 mm**, resíduo **zero** |
+| Diagonais fora por 9 mm | `DIAGONAIS_DESIGUAIS` |
+| Largura digitada 1350 em vez de 1380, diagonais concordando | `NAO_E_RETANGULO` (pego por Pitágoras) |
 
 Se T1 não couber em 1 mm, o protocolo muda até caber — mais marcadores, mais distância, calibração
 de lente. Se ainda assim não couber, o número vai **na tela** (I11).
