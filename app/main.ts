@@ -8,7 +8,16 @@
  */
 import {
   Editor,
+  apagarRascunho,
+  armazemDoNavegador,
+  definirRegraGraduacao,
+  duplicarPeca,
   ferramentasAvancadas,
+  guardarRascunho,
+  lerRascunho,
+  passosDaGrade,
+  removerPeca,
+  renomearPeca,
   ferramentaMoverPonto,
   ferramentaPique,
   ferramentaInserirPonto,
@@ -48,12 +57,27 @@ const opcoesDePique: OpcoesDePique = {
 };
 
 const gerar = criarGeradorMonotonico();
+const armazem = armazemDoNavegador(globalThis.localStorage);
+
+/**
+ * Abre com o log do modelo mais o RASCUNHO guardado.
+ *
+ * O rascunho e o que ficou pendente da ultima sessao: um travamento do navegador
+ * nao pode custar a manha do modelista. Ele volta como pendente — nao como se ja
+ * estivesse salvo —, porque salvo mesmo so depois que o servidor confirmar (E2).
+ */
+const guardado = lerRascunho(armazem, TENANT, MODELO);
 const sessao = new Sessao(logDaBlusa(), {
   tenantId: TENANT,
   modeloId: MODELO,
   autor: 'modelista',
   gerarId: () => gerar(),
 });
+if (guardado.length > 0) {
+  sessao.aplicar(
+    ...guardado.map((e) => ({ tipo: e.tipo, pecaId: e.pecaId, payload: e.payload })),
+  );
+}
 
 const opcoesDeCanto: OpcoesDeCanto = { medidaMM: 20 };
 const opcoesDeDividir: OpcoesDeDividir = { margemMM: 10 };
@@ -134,7 +158,8 @@ const em = (seletor: string) => document.querySelector(seletor) as HTMLElement;
 const mm = (um: number) => umParaMM(Math.round(um)).toFixed(1);
 
 function atualizarPaineis(): void {
-  const peca = editor.cena.derivados(PECA).peca;
+  const alvo = editor.cena.pecas.includes(pecaAtiva) ? pecaAtiva : (editor.cena.pecas[0] ?? PECA);
+  const peca = editor.cena.derivados(alvo).peca;
 
   // Ficha: todo numero sai de uma funcao de medida do motor, nunca de conta daqui.
   const linhas: [string, string][] = [
@@ -144,7 +169,7 @@ function atualizarPaineis(): void {
   ];
 
   // Largura de CORTE contra a util do papel: e ela que vai para o plotter.
-  const corte = editor.cena.derivados(PECA).corte;
+  const corte = editor.cena.derivados(alvo).corte;
   if (corte.length > 0) {
     const largura = Math.max(...corte.map((p) => p.x)) - Math.min(...corte.map((p) => p.x));
     const papel = editor.cena.modelo.papel;
@@ -208,7 +233,134 @@ function atualizarPaineis(): void {
   em('#opcoes-par').hidden = editor.ferramenta !== 'parCostura';
   em('#dica').textContent = DICAS[editor.ferramenta] ?? '';
   em('#contagem').textContent = `${editor.selecao.tamanho} selecionado(s)`;
+
+  atualizarPecas();
+  atualizarGraduacao();
+  guardarEAvisar();
 }
+
+/** Lista de pecas, com a ativa marcada. */
+let pecaAtiva = PECA;
+function atualizarPecas(): void {
+  const pecas = editor.cena.pecas;
+  if (!pecas.includes(pecaAtiva)) pecaAtiva = pecas[0] ?? PECA;
+  em('#pecas').innerHTML = pecas
+    .map((id) => {
+      const nome = editor.cena.modelo.pecas[id]!.metadados.nome;
+      return `<div class="linha" data-peca="${id}" style="cursor:pointer">
+        <span>${id === pecaAtiva ? '▸ ' : ''}${nome}</span><b>${id}</b></div>`;
+    })
+    .join('');
+}
+em('#pecas').addEventListener('click', (ev) => {
+  const linha = (ev.target as HTMLElement).closest('[data-peca]') as HTMLElement | null;
+  if (linha === null) return;
+  pecaAtiva = linha.dataset['peca']!;
+  redesenhar();
+});
+
+/**
+ * A tabela de graduacao: uma linha por grade point, uma coluna por PASSO da grade.
+ *
+ * O incremento e entre tamanhos consecutivos (D8), e grade point sem regra e a
+ * ancora (D7) — por isso a celula vazia e um estado legitimo, nao um erro.
+ */
+function atualizarGraduacao(): void {
+  const modelo = editor.cena.modelo;
+  const peca = modelo.pecas[pecaAtiva];
+  if (peca === undefined) {
+    em('#graduacao').innerHTML = '';
+    return;
+  }
+  const passos = passosDaGrade(modelo);
+  const linhas = Object.values(peca.gradePoints).map((gp) => {
+    const celulas = passos
+      .map(([de, para]) => {
+        const regra = Object.values(modelo.regrasGraduacao).find(
+          (r) => r.pontoGraduacaoId === gp.id && r.deTamanho === de && r.paraTamanho === para,
+        );
+        const dx = regra === undefined ? '' : umParaMM(regra.dx).toFixed(0);
+        const dy = regra === undefined ? '' : umParaMM(regra.dy).toFixed(0);
+        return (
+          `<input type="number" step="0.5" placeholder="dx" value="${dx}" ` +
+          `data-gp="${gp.id}" data-de="${de}" data-para="${para}" data-eixo="x" style="width:52px">` +
+          `<input type="number" step="0.5" placeholder="dy" value="${dy}" ` +
+          `data-gp="${gp.id}" data-de="${de}" data-para="${para}" data-eixo="y" style="width:52px">`
+        );
+      })
+      .join(' ');
+    return `<div class="linha"><span>${gp.pontoId}</span><b>${celulas}</b></div>`;
+  });
+  em('#graduacao').innerHTML =
+    `<div class="linha"><span>ponto</span><b>${passos.map(([a, b]) => `${a}→${b}`).join('&nbsp;&nbsp;&nbsp;&nbsp;')}</b></div>` +
+    linhas.join('');
+}
+
+em('#graduacao').addEventListener('change', (ev) => {
+  const campo = ev.target as HTMLInputElement;
+  const gp = campo.dataset['gp'];
+  if (gp === undefined) return;
+  const de = campo.dataset['de']!;
+  const para = campo.dataset['para']!;
+  const irmao = em('#graduacao').querySelector<HTMLInputElement>(
+    `input[data-gp="${gp}"][data-de="${de}"][data-eixo="${campo.dataset['eixo'] === 'x' ? 'y' : 'x'}"]`,
+  );
+  const meu = Number(campo.value);
+  const outro = Number(irmao?.value ?? '0');
+  const dx = campo.dataset['eixo'] === 'x' ? meu : outro;
+  const dy = campo.dataset['eixo'] === 'x' ? outro : meu;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+  sessao.aplicar(
+    ...definirRegraGraduacao(sessao.modelo, gp, de, para, dx, dy, `${gp}-${de}-${sessao.versao}`),
+  );
+  redesenhar();
+});
+
+// --------------------------------------------------------------- arquivo
+
+/** Guarda o rascunho a cada mudanca e conta para a interface como esta. */
+function guardarEAvisar(): void {
+  const guardou = guardarRascunho(armazem, TENANT, MODELO, sessao.pendentes);
+  const quantos = sessao.pendentes.length;
+  em('#estado-salvo').textContent =
+    quantos === 0
+      ? 'Nada pendente.'
+      : guardou
+        ? `${quantos} evento(s) pendente(s), guardados no navegador.`
+        : `${quantos} pendente(s) — NAO foi possivel guardar no navegador.`;
+}
+
+em('#salvar').addEventListener('click', () => {
+  // Sem backend configurado, "salvar" e selar o que ja esta guardado localmente.
+  // O caminho de rede (`salvar` do @cad/editor) entra quando houver API e token.
+  sessao.selar();
+  apagarRascunho(armazem, TENANT, MODELO);
+  redesenhar();
+});
+em('#descartar').addEventListener('click', () => {
+  while (sessao.podeDesfazer) sessao.desfazer();
+  editor.selecao.podar(editor.cena);
+  apagarRascunho(armazem, TENANT, MODELO);
+  redesenhar();
+});
+
+em('#duplicar').addEventListener('click', () => {
+  sessao.aplicar(...duplicarPeca(sessao.modelo, pecaAtiva, `cp${sessao.versao}`));
+  redesenhar();
+});
+em('#renomear').addEventListener('click', () => {
+  const atual = sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? '';
+  const nome = globalThis.prompt('Nome da peça', atual);
+  if (nome === null || nome.trim() === '') return;
+  sessao.aplicar(...renomearPeca(sessao.modelo, pecaAtiva, nome.trim()));
+  redesenhar();
+});
+em('#remover-peca').addEventListener('click', () => {
+  if (editor.cena.pecas.length <= 1) return;
+  sessao.aplicar(...removerPeca(sessao.modelo, pecaAtiva));
+  editor.selecao.podar(editor.cena);
+  redesenhar();
+});
 
 // ------------------------------------------------------------- controles
 
@@ -379,14 +531,23 @@ const DICAS: Readonly<Record<string, string>> = {
 // Papel do plotter. O rolo e da casa, entao e evento de MODELO (pecaId null).
 const MARGEM_DO_PLOTTER_MM = 10;
 function aplicarPapel(larguraMM: number): void {
+  const larguraUM = Math.round(larguraMM * MM);
+  const margemUM = Math.round(MARGEM_DO_PLOTTER_MM * MM);
+  const atual = sessao.modelo.papel;
+  // Ja e esse rolo: nao emite. Sem isto, cada recarga da pagina acrescentava um
+  // `DefinirPapel` identico ao log — inofensivo no fold, mas lixo que so cresce.
+  if (atual !== null && atual.larguraUM === larguraUM && atual.margemDeSegurancaUM === margemUM) {
+    em('#valor-util').textContent = `${larguraMM - 2 * MARGEM_DO_PLOTTER_MM} mm úteis`;
+    return;
+  }
   sessao.aplicar({
     tipo: 'DefinirPapel',
     pecaId: null,
     payload: {
       papelId: 'papel',
       nome: `${larguraMM} mm`,
-      larguraUM: Math.round(larguraMM * MM),
-      margemDeSegurancaUM: Math.round(MARGEM_DO_PLOTTER_MM * MM),
+      larguraUM,
+      margemDeSegurancaUM: margemUM,
     },
   });
   em('#valor-util').textContent = `${larguraMM - 2 * MARGEM_DO_PLOTTER_MM} mm úteis`;

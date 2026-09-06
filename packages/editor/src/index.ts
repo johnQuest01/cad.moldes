@@ -110,3 +110,32 @@ export {
   type OpcoesDeLinha,
   type TipoDeLinha,
 } from './ferramentas-avancadas.js';
+
+export {
+  duplicarPeca,
+  renomearPeca,
+  removerPeca,
+  definirEncaixe,
+  definirMargem,
+  simplificarContorno,
+  abrirPregas,
+  definirRegraGraduacao,
+  removerRegraGraduacao,
+  trocarPique,
+  passosDaGrade,
+  AFASTAMENTO_DA_COPIA_UM,
+} from './comandos.js';
+
+export {
+  armazemDeMemoria,
+  armazemDoNavegador,
+  guardarRascunho,
+  lerRascunho,
+  apagarRascunho,
+  salvar,
+  abrir,
+  type Armazem,
+  type Rede,
+  type OpcoesDoCliente,
+  type Resultado,
+} from './armazem.js';

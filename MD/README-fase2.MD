@@ -73,7 +73,16 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
 - **Papel do plotter — fechado** (fora da ordem, porque é ele que impede desenhar uma peça que não
   imprime). `Papel` no modelo, `DefinirPapel`, `conferirPapel` no validador, as bordas úteis na tela
   e a largura do corte contra a útil na ficha.
-- **Blocos 6 e 8 — a fazer.** Painéis de graduação e de peças, e a persistência contra `@cad/api`.
+- **Bloco 6 — fechado.** Painel de peças (lista, duplicar, renomear, remover) e **tabela de
+  graduação** — uma linha por grade point, uma coluna por passo consecutivo da grade (D8), com
+  célula vazia sendo a âncora (D7). Os comandos são funções puras em `comandos.ts`, testadas
+  headless: mudar a regra emite `RemoverRegraGraduacao` + `DefinirRegraGraduacao` **num passo só**.
+- **Bloco 8 — fechado na metade que vale agora.** O rascunho é guardado a cada gesto e **sobrevive
+  ao travamento**: recarregar a página traz de volta a peça duplicada e a regra alterada. O cliente
+  da API (`salvar`/`abrir`) está escrito e testado com rede injetada — o `201` sela a sessão, o
+  `403` e a falta de rede **não** selam e o trabalho continua pendente. Falta ligar num backend com
+  token.
+- **A fazer, e é o que trava o preço:** DXF (importar/exportar), plotter/HPGL e encaixe.
 
 ## Rodar o editor
 
