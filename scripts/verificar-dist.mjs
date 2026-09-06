@@ -176,6 +176,16 @@ conferir(
   `${(areaOriginal / 1e8).toFixed(1)} cm2 -> ${(areaDeVolta / 1e8).toFixed(1)} cm2`,
 );
 
+console.log('@cad/plotter');
+const plotter = await import('@cad/plotter');
+const hpgl = plotter.gerarHpgl(motor.reconstruir(log));
+const linhas = hpgl.hpgl.trim().split('\n');
+conferir(
+  'HPGL do artefato construido',
+  linhas[0] === 'IN;' && linhas[linhas.length - 1] === 'IN;' && linhas.some((l) => l.startsWith('PD')),
+  `${linhas.length} comandos, ${motor.umParaMM(hpgl.comprimentoUsadoUM)} mm de rolo`,
+);
+
 console.log('@cad/api');
 const api = await import('@cad/api');
 conferir('exporta criarServidor', typeof api.criarServidor === 'function');

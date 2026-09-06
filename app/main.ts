@@ -34,6 +34,8 @@ import {
   type OpcoesDePar,
 } from '@cad/editor';
 import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pixi';
+import { exportarDxf } from '@cad/dxf';
+import { gerarHpgl } from '@cad/plotter';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   type Id,
@@ -342,6 +344,38 @@ em('#descartar').addEventListener('click', () => {
   editor.selecao.podar(editor.cena);
   apagarRascunho(armazem, TENANT, MODELO);
   redesenhar();
+});
+
+/**
+ * Baixa um arquivo de texto.
+ *
+ * Enquanto nao ha o wrap Tauri (Fase 4), quem manda para a maquina e o operador,
+ * pela ferramenta que ele ja usa. Navegador nao tem porta serial confiavel no chao
+ * de fabrica, e fingir que tem seria pior que baixar o arquivo.
+ */
+function baixar(nome: string, conteudo: string): void {
+  const url = URL.createObjectURL(new Blob([conteudo], { type: 'text/plain' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nome;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+em('#exportar-dxf').addEventListener('click', () => {
+  const { dxf, problemas } = exportarDxf(sessao.modelo, { tamanho: editor.cena.tamanho });
+  baixar(`${MODELO}-${editor.cena.tamanho}.dxf`, dxf);
+  if (problemas.length > 0) {
+    em('#estado-salvo').textContent = `DXF gerado com ${problemas.length} problema(s): ${problemas[0]!.codigo}`;
+  }
+});
+
+em('#exportar-hpgl').addEventListener('click', () => {
+  const saida = gerarHpgl(sessao.modelo, { tamanho: editor.cena.tamanho, comCostura: true });
+  baixar(`${MODELO}-${editor.cena.tamanho}.plt`, saida.hpgl);
+  em('#estado-salvo').textContent =
+    `HPGL: ${saida.pecasPlotadas} peça(s), ${mm(saida.comprimentoUsadoUM)} mm de rolo` +
+    (saida.problemas.length > 0 ? ` | ${saida.problemas.length} problema(s)` : '');
 });
 
 em('#duplicar').addEventListener('click', () => {

@@ -16,6 +16,8 @@ export default defineConfig({
       '@cad/motor': fonte('motor'),
       '@cad/editor': fonte('editor'),
       '@cad/editor-pixi': fonte('editor-pixi'),
+      '@cad/dxf': fonte('dxf'),
+      '@cad/plotter': fonte('plotter'),
     },
   },
   build: { outDir: 'dist', emptyOutDir: true },
