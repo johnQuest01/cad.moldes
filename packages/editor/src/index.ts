@@ -63,3 +63,18 @@ export {
   type Referencia,
   type ModoDeMarquee,
 } from './selecao.js';
+
+export { Editor, type Contexto, type Ferramenta, type Cota } from './ferramenta.js';
+
+export {
+  ferramentasEssenciais,
+  ferramentaSelecionar,
+  ferramentaMoverPonto,
+  ferramentaMoverPeca,
+  ferramentaPique,
+  ferramentaInserirPonto,
+  ferramentaMedir,
+  LIMIAR_DE_ARRASTO_PX,
+  type OpcoesDeMover,
+  type OpcoesDePique,
+} from './ferramentas.js';

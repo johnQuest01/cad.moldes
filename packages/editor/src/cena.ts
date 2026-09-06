@@ -64,6 +64,11 @@ export class Cena {
     return this.#sessao.modelo;
   }
 
+  /** Versao do log. Serve de semente para ids deterministicos das ferramentas. */
+  get versaoDoLog(): number {
+    return this.#sessao.versao;
+  }
+
   /** O tamanho exibido. Sem escolha explicita, e o tamanho base do modelo. */
   get tamanho(): string {
     return this.#tamanho ?? this.modelo.tamanhoBase;

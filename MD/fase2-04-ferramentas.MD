@@ -172,3 +172,79 @@ arco do pique, o fillet que não cabe, o `reta→curva` que não muda medida.
 
 **Contagem esperada ao fim do Bloco 7:** 22 ferramentas × 3 + os particulares ≈ **80 testes** só de
 ferramenta, sobre os 201 que já existem.
+
+
+---
+
+## O que a implementação mostrou — Bloco 4 fechado
+
+**20 testes novos** (78 no `@cad/editor`, **283 no total**). As seis essenciais estão de pé, e o
+`Editor` — que conduz a ferramenta ativa, a câmera, a cena, as camadas e a seleção — é o objeto que
+o `@cad/editor-pixi` vai dirigir no Bloco 5.
+
+### A previsualização é calculada na peça BASE, e isso não é detalhe
+
+Escrevendo a ferramenta apareceu uma armadilha: dá para calcular a prévia na peça **já graduada**,
+que é a que está na tela. Mais simples, e **errado no modo proporcional** — o decaimento depende da
+posição dos vizinhos, e ela muda de tamanho para tamanho. A prévia mostraria uma coisa e o resultado
+seria outra. Prévia que mente é pior que prévia nenhuma.
+
+Então a prévia é calculada na base e graduada com a mesma conta do resultado final. Medido no
+tamanho G, modo proporcional:
+
+```
+--- previa x resultado, no tamanho G, modo proporcional ---
+previa    (175, 438) mm
+resultado (175, 438) mm
+```
+
+### As três regras, medidas
+
+```
+--- Esc ---
+arrastou 30 mm (previa: true) e apertou Esc
+  -> 0 eventos, versao 0 -> 0, previa limpa
+
+--- um gesto, UM evento ---
+5 quadros de arrasto -> 1 evento: ModificarPonto
+dx = 20 mm, dy = 10 mm | modo proporcional, 2 vizinhos
+largura 190 -> 205 mm
+
+--- recusa do motor cancela (E7) ---
+99 vizinhos num contorno de 6 pontos -> N_VIZINHOS_EXCEDE_CONTORNO
+  | 0 eventos | versao 0 -> 0
+Alt+clique num vertice do contorno -> PONTO_NOTAVEL_NAO_REMOVIVEL
+  | 0 eventos, versao 0 -> 0
+```
+
+### Por ferramenta
+
+```
+selecionar   clique -> 1 item | marquee -> 7 itens | 0 eventos
+             tremida de 1 px -> 1 item (clique, nao marquee)
+
+moverPonto   arrastou (30, 4) mm com Shift -> dx 30 mm, dy 0 mm
+             cursor parou em 17.321 mm; digitou 20 -> dx = 20 mm EXATO (E10)
+             apontou e soltou no mesmo lugar -> 0 eventos
+
+moverPeca    TransladarPeca dx = 100 mm | a peca comeca em x = 100 mm
+             2 pecas movidas -> 2 eventos em 1 passo | 1 desfazer -> 0 eventos
+
+pique        cravado: V em ar-lateral, s = 0.500, 6.35 x 1.59 mm
+             AdicionarPique, MoverPique, RemoverPique | s 0.500 -> 0.767
+             puxou para a bainha -> nada: continua em ar-lateral
+             T de 20 mm em aresta de margem 12 -> [aviso] PIQUE_MAIS_FUNDO_QUE_A_MARGEM
+             clique no meio do tecido -> 0 eventos
+
+inserir      pontos: 8 -> 9 -> 8 | InserirPonto, ExcluirPonto
+             s no segmento 0.5000 | bainha continua com 180 mm
+
+medir        cota "aresta ar-lateral": 300.167 mm
+             medirAresta do motor:     300.167 mm   <- o MESMO numero
+             dois cliques 2 mm dentro dos cantos -> 180 mm (o snap prendeu nos vertices)
+```
+
+A régua é onde se prova que a tela não mente: a cota **é** o retorno de `medirAresta`, não uma conta
+refeita no editor. Se um dia divergir, é bug do motor — e é exatamente isso que se quer.
+
+**Próximo:** Bloco 5 — `@cad/editor-pixi`, o render.

@@ -58,4 +58,8 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
 - **Bloco 3 — fechado.** `Selecao` guarda **referência, não coordenada** (sobrevive à edição e à
   graduação), com `podar` para as órfãs; marquee janela × cruzamento pela convenção de CAD.
   **58 testes** no editor. Números no fim da Parte 3.
-- **Blocos 4 a 8 — a fazer.** O próximo é o Bloco 4: a máquina de ferramentas e as seis essenciais.
+- **Bloco 4 — fechado.** `Editor` (conduz ferramenta, câmera, cena, camadas e seleção) e as seis
+  essenciais: selecionar, mover ponto, mover peça, pique, inserir ponto e medir. **78 testes** no
+  editor. Números no fim da Parte 4 — inclusive a prévia calculada na peça **base**, que é o que
+  impede a previsualização de mentir no modo proporcional.
+- **Blocos 5 a 8 — a fazer.** O próximo é o Bloco 5: `@cad/editor-pixi`, o render.
