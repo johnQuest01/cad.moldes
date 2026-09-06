@@ -20,3 +20,36 @@ export {
   type Caixa,
   type Pixel,
 } from './camera.js';
+
+export {
+  Camadas,
+  CAMADAS,
+  CAMADA_ASTM,
+  type Camada,
+  type EstadoDaCamada,
+} from './camadas.js';
+
+export { Cena, type Derivados } from './cena.js';
+
+export {
+  acharAlvo,
+  peDaPerpendicular,
+  PRIORIDADE,
+  CAMADA_DO_ALVO,
+  RAIO_DE_CAPTURA_PX,
+  type Alvo,
+  type TipoDeAlvo,
+  type OpcoesDeBusca,
+} from './alvo.js';
+
+export {
+  acharSnap,
+  RAIOS_PX,
+  PASSO_DA_GRADE_UM,
+  ANGULOS_ORTOGONAIS,
+  SEM_MODIFICADOR,
+  type Snap,
+  type TipoDeSnap,
+  type Modificadores,
+  type OpcoesDeSnap,
+} from './snap.js';

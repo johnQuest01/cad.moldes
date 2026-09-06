@@ -53,3 +53,48 @@ export function anelDoContorno(peca: Peca, toleranciaUM: UM = TOLERANCIA_TESSELA
 
   return anel;
 }
+
+/**
+ * O ponto esta DENTRO do anel? Lancamento de raio, com contagem de cruzamentos.
+ *
+ * Mora no motor, e nao no editor, porque e conta geometrica: a Fase 2 precisa dela
+ * para saber que peca o cursor esta apontando, e a Fase 5 vai precisar para o
+ * encaixe. Duplicar a conta em dois lugares e como duas trenas com marcacao
+ * diferente.
+ *
+ * O raio sai para +x. A regra `(a.y > y) !== (b.y > y)` conta cada aresta uma vez
+ * so mesmo quando o raio passa exatamente por um vertice — e a formulacao classica,
+ * e e ela que evita contar duas vezes e concluir "fora" de um ponto que esta dentro.
+ * Ponto exatamente em cima da borda e caso ambiguo por natureza; aqui ele conta como
+ * DENTRO, que e o que o cursor de um CAD espera ao encostar na linha.
+ */
+export function contemPonto(anel: readonly Vetor2[], ponto: Vetor2): boolean {
+  const { x, y } = ponto;
+  let dentro = false;
+
+  for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+    const a = anel[i]!;
+    const b = anel[j]!;
+
+    // Em cima da borda: decide antes, para nao depender da paridade.
+    if (naCorda(a, b, ponto)) return true;
+
+    if (a.y > y !== b.y > y) {
+      const cruzamentoX = a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y);
+      if (x < cruzamentoX) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+
+/** O ponto esta em cima do trecho [a, b]? Colinear E entre os dois extremos. */
+function naCorda(a: Vetor2, b: Vetor2, p: Vetor2): boolean {
+  const produtoVetorial = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+  if (produtoVetorial !== 0) return false;
+  return (
+    p.x >= Math.min(a.x, b.x) &&
+    p.x <= Math.max(a.x, b.x) &&
+    p.y >= Math.min(a.y, b.y) &&
+    p.y <= Math.max(a.y, b.y)
+  );
+}

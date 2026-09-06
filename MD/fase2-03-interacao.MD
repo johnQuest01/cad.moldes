@@ -67,7 +67,7 @@ type Snap =
 | 6 | `noContorno` | qualquer ponto do contorno (projeção perpendicular) | 8 px |
 | 7 | `grade` | interseção da grade de 5 cm | 6 px |
 
-**A ordem é de prioridade, não de proximidade.** Um vértice a 11 px ganha de um ponto de grade a
+**A ordem é de prioridade, não de proximidade.** Um vértice a 8 px ganha de um ponto de grade a
 2 px: o modelista que aproximou o cursor de um canto quer o canto. Dentro do mesmo tipo, vence o
 mais próximo.
 
@@ -194,7 +194,7 @@ documento fica exatamente como estava.
 
 1. **Prioridade do hit-testing:** um ponto e um pique a distâncias fixas, com o cursor entre os
    dois; conferir qual sai, e que camada travada some da busca. Números colados.
-2. **Prioridade do snap:** vértice a 11 px × grade a 2 px → sai o vértice. Alt segurado → sai nada.
+2. **Prioridade do snap:** vértice a 8 px × grade a 2 px → sai o vértice. Alt segurado → sai nada.
 3. **`meio` por arco:** numa cava (Bézier assimétrica), o snap de meio cai em `s = 0.5` medido por
    arco, e **não** no ponto de `t = 0.5` — a distância entre os dois é colada, provando que a
    distinção importa.
@@ -207,3 +207,111 @@ documento fica exatamente como estava.
 7. **Entrada numérica:** digitar `dx = 20 mm` no meio de um arrasto produz um evento
    `ModificarPonto` com `dx = 20000` exato — não o valor do último pixel.
 8. **`Esc` no meio do gesto:** nenhum evento na sessão, e `sessao.versao` inalterada.
+
+
+---
+
+## O que a implementação mostrou — Bloco 2 fechado
+
+**19 testes novos** (45 no `@cad/editor`). A peça de teste deixou de ser retângulo e passou a ser a
+frente de blusa: cava e decote em Bézier, margens diferentes por aresta, fio em `Ponto` de verdade,
+eixo de dobra e graduação. Num retângulo, o snap de meio por arco daria o mesmo resultado que o
+`t = 0.5`, e o teste não provaria nada.
+
+### Uma conta nova foi para o motor, não para o editor
+
+Hit-testing de peça precisa de "o ponto está dentro do contorno?". Isso é **geometria**, então
+`contemPonto` entrou em `@cad/motor` (lançamento de raio, com o caso da borda e o do vértice
+tratados), com dois testes próprios. A Fase 5 vai precisar da mesma conta para o encaixe, e duas
+implementações seriam duas trenas com marcação diferente.
+
+```
+--- contemPonto ---
+no meio                         -> dentro
+em cima da borda de baixo       -> dentro
+no vertice                      -> dentro
+na altura de um vertice, fora   -> fora
+na altura de um vertice, dentro -> dentro
+ponto (110, 100) mm: lateral reta -> fora | lateral curvada 30 mm -> dentro
+```
+
+### Prioridade do hit-testing
+
+```
+2 mm do ombro de fora   -> ponto pt-3          (o vertice ganha da aresta que passa nele)
+no meio da lateral      -> aresta ar-lateral em s=0.500
+no meio do tecido       -> peca pec-frente
+a 90 cm da peca         -> nada
+em cima do pique        -> pique pq-1
+  com a camada travada  -> aresta ar-lateral em s=0.500
+1 mm do fio, destravada -> interna li-fio
+  com a camada travada  -> peca pec-frente
+no controle da cava, sem selecao      -> aresta ar-cava em s=0.437
+  com sg-2 selecionado                -> controle 0 de sg-2
+```
+
+A alça de controle só existe no segmento selecionado. Sem isso, uma peça com cava e decote vira um
+campo de bolinhas e não se consegue mais clicar na linha.
+
+E o raio acompanha o zoom, que é o ponto da E11:
+
+```
+a 8.9 mm do ombro: zoom 1x -> ponto pt-3 | zoom 8x -> nada
+```
+
+### Prioridade do snap — e por que ela não é proximidade
+
+```
+cursor a 8 mm do vertice (raio 12 px) e a 2 mm da grade (raio 6 px)
+-> ganhou vertice — prioridade, nao proximidade
+
+em cima do vertice: sem Alt -> vertice | com Alt -> nada
+cursor em (98, 202) mm -> grade em (100, 200) mm | passo 50 mm
+sem origem -> nada | com origem, 3 mm acima da horizontal -> 0 graus em (140, 100) mm
+no meio-baixo da lateral -> noContorno em (182.7, 80.0) mm
+3 mm do eixo de dobra -> eixo dobra em x = 0 mm
+```
+
+### O número que justifica o snap de meio ser por arco
+
+Na cava da blusa:
+
+```
+por ARCO   (181.62, 369.78) mm
+por t=0.5  (177.50, 386.00) mm
+distancia entre os dois: 16.734 mm
+```
+
+**16,7 mm.** É o bônus da D1 aparecendo na interface: quem pede "pique no meio da cava" e recebe o
+ponto de `t = 0.5` recebe um pique a um centímetro e meio do lugar. O snap cai no de arco.
+
+### Os raios são em pixels
+
+```
+--- raios (px) ---
+vertice 12 | intersecao 10 | meio 10 | eixo 8 | ortogonal 8 | noContorno 8 | grade 6
+
+ 0.25 px/mm: 10 px = 40.00 mm -> vertice
+ 1.00 px/mm: 10 px = 10.00 mm -> vertice
+ 4.00 px/mm: 10 px =  2.50 mm -> vertice
+16.00 px/mm: 10 px =  0.63 mm -> vertice
+```
+
+O mesmo gesto — cursor a dez pixels do vértice — agarra em qualquer zoom. É isso que "constante na
+tela" quer dizer.
+
+### A cena e o cache
+
+```
+--- cache dos derivados (E8) ---
+10 leituras sem editar -> 1 calculo
+1 edicao + 1 leitura   -> 2 calculos no total
+tamanho exibido: P 184 mm | M 190 mm | G 196 mm | 3 calculos
+```
+
+O `Cena` guarda por `(pecaId, versão, tamanho)`: peça graduada, contorno, linha de corte, tabela de
+arco por aresta, piques projetados, problemas e caixa. Erro derivado — `offsetMargem` numa peça sem
+margem — vira o campo `erro`, e não um `catch` que devolve lista vazia: o desenho continua de pé e o
+problema aparece na conferência.
+
+**Próximo:** Bloco 3 — seleção (janela × cruzamento).

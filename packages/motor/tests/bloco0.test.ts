@@ -21,7 +21,7 @@ import { duplicarPeca } from '../src/duplicar.js';
 import { dividirPeca } from '../src/dividir.js';
 import { abrirPregas } from '../src/pregas.js';
 import { aplicarGraduacao } from '../src/graduacao.js';
-import { area, anelDoContorno } from '../src/geometria/anel.js';
+import { area, anelDoContorno, contemPonto } from '../src/geometria/anel.js';
 import { medirAresta, pontoEmS } from '../src/geometria/medir.js';
 import { offsetMargem } from '../src/offset.js';
 import { adicionarPique } from '../src/piques.js';
@@ -583,5 +583,53 @@ describe('Compatibilidade de schema', () => {
     const codigo = codigoDoErro(() => reconstruir([...base(), evt('EventoQueNaoExiste', {})]));
     console.log(`tipo desconhecido -> ${codigo}`);
     expect(codigo).toBe('EVENTO_VERSAO_DESCONHECIDA');
+  });
+});
+
+// ===========================================================================
+// 7. contemPonto — a conta que o editor precisa, e que mora no motor
+// ===========================================================================
+
+describe('contemPonto — dentro, fora e em cima da borda', () => {
+  it('acerta o retangulo, inclusive nos casos que enganam o lancamento de raio', () => {
+    const anel = anelDoContorno(peca(reconstruir(base())));
+    const casos: readonly (readonly [string, Vetor2, boolean])[] = [
+      ['no meio', { x: 50 * MM, y: 100 * MM }, true],
+      ['fora, a direita', { x: 150 * MM, y: 100 * MM }, false],
+      ['fora, abaixo', { x: 50 * MM, y: -1 * MM }, false],
+      ['em cima da borda de baixo', { x: 50 * MM, y: 0 }, true],
+      ['no vertice', { x: 0, y: 0 }, true],
+      ['na altura de um vertice, fora', { x: -1 * MM, y: 200 * MM }, false],
+      ['na altura de um vertice, dentro', { x: 50 * MM, y: 200 * MM }, true],
+    ];
+    console.log('--- contemPonto ---');
+    for (const [nome, ponto, esperado] of casos) {
+      const resultado = contemPonto(anel, ponto);
+      console.log(`${nome.padEnd(30)} -> ${resultado ? 'dentro' : 'fora'}`);
+      expect(resultado).toBe(esperado);
+    }
+  });
+
+  it('num contorno com curva, o ponto entre a corda e a curva e classificado pela curva', () => {
+    // Lateral direita convertida em curva e empurrada 30 mm para fora: um ponto a
+    // 110 mm passa a estar DENTRO, e antes estava fora.
+    const reta = anelDoContorno(peca(reconstruir(base())));
+    const curva = anelDoContorno(
+      peca(
+        reconstruir([
+          ...base(),
+          evt('ConverterSegmento', { segmentoId: 'sg-1', para: 'curva' }),
+          evt('MoverControle', { segmentoId: 'sg-1', indice: 0, dx: 30 * MM, dy: 0 }),
+          evt('MoverControle', { segmentoId: 'sg-1', indice: 1, dx: 30 * MM, dy: 0 }),
+        ]),
+      ),
+    );
+    const alvo = { x: 110 * MM, y: 100 * MM };
+    console.log(
+      `ponto (110, 100) mm: com a lateral reta -> ${contemPonto(reta, alvo) ? 'dentro' : 'fora'} | ` +
+        `com a lateral curvada 30 mm -> ${contemPonto(curva, alvo) ? 'dentro' : 'fora'}`,
+    );
+    expect(contemPonto(reta, alvo)).toBe(false);
+    expect(contemPonto(curva, alvo)).toBe(true);
   });
 });

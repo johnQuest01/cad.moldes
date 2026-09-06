@@ -51,4 +51,8 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
   cache por versão) e `Camera` (mundo Y-up em UM ↔ tela Y-down em px, zoom no cursor, enquadrar,
   vista para culling). **26 testes** headless, com os números no fim da Parte 1 — incluindo o
   guarda-costas da E3, que falha se alguém importar Pixi ou tocar no DOM aqui dentro.
-- **Blocos 2 a 8 — a fazer.** O próximo é o Bloco 2: hit-testing e snap (Parte 3).
+- **Bloco 2 — fechado.** `Camadas` (as 10 do DXF ASTM, com visível e travada), `Cena` (cache dos
+  derivados por versão e tamanho), `acharAlvo` (6 tipos por prioridade) e `acharSnap` (7 tipos, raio
+  em pixels). **45 testes** no editor. Números no fim da Parte 3 — incluindo os **16,7 mm** entre o
+  meio por arco e o `t = 0.5` na cava, que é o bônus da D1 aparecendo na interface.
+- **Blocos 3 a 8 — a fazer.** O próximo é o Bloco 3: seleção (janela × cruzamento).

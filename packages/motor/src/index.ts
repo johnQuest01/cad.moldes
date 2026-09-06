@@ -55,7 +55,7 @@ export type {
   Problema,
 } from './tipos.js';
 
-export { areaComSinal, area, ehCCW, anelDoContorno } from './geometria/anel.js';
+export { areaComSinal, area, ehCCW, anelDoContorno, contemPonto } from './geometria/anel.js';
 export { normalizarWinding, areaDoContorno } from './geometria/winding.js';
 
 export {
