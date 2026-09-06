@@ -158,6 +158,24 @@ conferir(
   `${motor.umParaMM(depoisDeEditar)} mm -> desfazer -> ${motor.umParaMM(larguraEditada(sessao.modelo))} mm`,
 );
 
+console.log('@cad/dxf');
+const dxf = await import('@cad/dxf');
+const saida = dxf.exportarDxf(motor.reconstruir(log));
+const devolta = dxf.importarDxf(saida.dxf, {
+  tenantId: 't',
+  modeloId: 'm2',
+  autor: 'verificar-dist',
+  gerarId: motor.criarGeradorMonotonico(),
+});
+const pecaDeVolta = Object.values(motor.reconstruir(devolta.eventos).pecas)[0];
+const areaOriginal = motor.area(motor.anelDoContorno(peca));
+const areaDeVolta = motor.area(motor.anelDoContorno(pecaDeVolta));
+conferir(
+  'round-trip do DXF no artefato construido',
+  areaOriginal === areaDeVolta,
+  `${(areaOriginal / 1e8).toFixed(1)} cm2 -> ${(areaDeVolta / 1e8).toFixed(1)} cm2`,
+);
+
 console.log('@cad/api');
 const api = await import('@cad/api');
 conferir('exporta criarServidor', typeof api.criarServidor === 'function');

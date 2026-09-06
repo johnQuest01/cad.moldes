@@ -1,8 +1,8 @@
 # cad.moldes — Fase 1
 
 Motor geométrico 2D para modelagem de moldes de confecção, em TypeScript puro, mais a persistência
-por log de eventos e o backend. **Fase 1 fechada e Fase 2 até o Bloco 5: 313 testes passando** (187 motor + 89 editor +
-18 persistência + 19 API).
+por log de eventos e o backend. **Fases 1, 2 e 3 fechadas: 384 testes passando** (192 motor + 141 editor + 14 DXF + 18 persistência
++ 19 API).
 
 A especificação normativa está em [`MD/`](MD/README-fase1.MD) — comece pelo índice. A **Parte 6**
 diz onde o código está e traz cada decisão com o número medido que a sustenta.
@@ -17,6 +17,7 @@ diz onde o código está e traz cada decisão com o número medido que a sustent
 | `@cad/editor` | o comportamento do editor: sessão, câmera, snap, seleção, ferramentas. Puro, sem DOM |
 | `@cad/editor-pixi` | render e entrada, em PixiJS 8 |
 | `app/` | o editor |
+| `@cad/dxf` | importar e exportar DXF-AAMA/ASTM |
 | `demo/` | o motor rodando no navegador, com o cursor |
 
 ## Rodar
@@ -50,5 +51,4 @@ Estão na [Parte 0](MD/fase1-00-protocolo.MD), e valem para qualquer coisa que e
 
 ## O que fica para as próximas fases
 
-O editor completo em PixiJS (Fase 2), o parser de DXF (Fase 3) e o encaixe (Fase 5). A `demo/`
-cobre o gesto — arrastar ponto, cravar pique, inserir ponto —, não a ferramenta inteira.
+O plotter/HPGL com o wrap Tauri (Fase 4) e o encaixe (Fase 5).
