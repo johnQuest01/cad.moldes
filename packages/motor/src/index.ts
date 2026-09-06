@@ -94,6 +94,8 @@ export {
 
 export { dividirPeca } from './dividir.js';
 
+export { duplicarPeca, type PecaDuplicada } from './duplicar.js';
+
 export { abrirPregas, aberturaDasPregas } from './pregas.js';
 
 export { projetarPique, projetarPiques, type PiqueProjetado } from './pique.js';
@@ -117,6 +119,7 @@ export {
 
 export {
   modificarPonto,
+  moverControle,
   fatorDeDecaimento,
   inserirPonto,
   excluirPonto,
@@ -156,6 +159,17 @@ export type {
   AdicionarPique,
   MoverPique,
   RemoverPique,
+  MoverControle,
+  DuplicarPeca,
+  DividirPeca,
+  AbrirPregas,
+  DefinirEncaixe,
+  RemoverPeca,
+  RemoverLinhaInterna,
+  RemoverRecorte,
+  DesmarcarGradePoint,
+  RemoverRegraGraduacao,
+  RemoverParCostura,
   DefinirEixoDobra,
   RemoverEixoDobra,
   EspelharPeca,

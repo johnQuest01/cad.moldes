@@ -286,6 +286,94 @@ export type MoverPique = Envelope<'MoverPique', { readonly piqueId: Id; readonly
 /** Tira o pique da peca. */
 export type RemoverPique = Envelope<'RemoverPique', { readonly piqueId: Id }>;
 
+/**
+ * Move um dos dois controles de um segmento curvo — e o gesto que da forma a cava
+ * e ao decote. Os extremos do segmento NAO se movem (ver `moverControle`).
+ */
+export type MoverControle = Envelope<
+  'MoverControle',
+  {
+    readonly segmentoId: Id;
+    readonly indice: 0 | 1;
+    readonly dx: UM;
+    readonly dy: UM;
+  }
+>;
+
+/**
+ * Copia a peca inteira com ids novos derivados de `prefixoId` (D2).
+ *
+ * `comGraduacao` decide se as regras do MODELO que apontam para os grade points da
+ * peca original ganham copia apontando para os da nova. Sem isso, a copia nasce
+ * sem graduacao e o validador acusa — o que tambem e uma escolha legitima do
+ * modelista, e por isso e campo, nao comportamento fixo.
+ */
+export type DuplicarPeca = Envelope<
+  'DuplicarPeca',
+  {
+    readonly novoPecaId: Id;
+    readonly prefixoId: Id;
+    readonly dx: UM;
+    readonly dy: UM;
+    readonly comGraduacao: boolean;
+  }
+>;
+
+/**
+ * Corta a peca em duas por um eixo livre. A peca do envelope DESAPARECE e as duas
+ * partes (`<id>-1` e `<id>-2`) entram no lugar.
+ */
+export type DividirPeca = Envelope<
+  'DividirPeca',
+  {
+    readonly p1: Vetor2;
+    readonly p2: Vetor2;
+    readonly margemNovaUM: UM;
+    readonly prefixoId: Id;
+  }
+>;
+
+/** Abre as pregas dos eixos dados e deixa a peca PLANA, com os piques de prega. */
+export type AbrirPregas = Envelope<
+  'AbrirPregas',
+  {
+    readonly eixoIds: readonly Id[];
+    readonly prefixoId: Id;
+  }
+>;
+
+/** Troca as propriedades de encaixe depois de a peca existir (quantidade, giro, par). */
+export type DefinirEncaixe = Envelope<
+  'DefinirEncaixe',
+  {
+    readonly encaixe: PropriedadesEncaixe;
+  }
+>;
+
+/** Tira a peca do modelo. `ParCostura` que apontava para ela fica, e a conferencia acusa. */
+export type RemoverPeca = Envelope<'RemoverPeca', Record<string, never>>;
+
+export type RemoverLinhaInterna = Envelope<'RemoverLinhaInterna', { readonly linhaId: Id }>;
+
+export type RemoverRecorte = Envelope<'RemoverRecorte', { readonly recorteId: Id }>;
+
+/**
+ * Desmarca um grade point. As regras que apontavam para ele NAO sao apagadas em
+ * cascata: apagar em silencio esconderia do modelista que ele acabou de perder a
+ * graduacao daquele ponto. Elas ficam, e `validarModelo` acusa.
+ */
+export type DesmarcarGradePoint = Envelope<
+  'DesmarcarGradePoint',
+  { readonly gradePointId: Id }
+>;
+
+export type RemoverRegraGraduacao = Envelope<
+  'RemoverRegraGraduacao',
+  { readonly regraId: Id }
+>;
+
+export type RemoverParCostura = Envelope<'RemoverParCostura', { readonly parId: Id }>;
+
 /** Recorte interno (camada 11 do DXF ASTM): anel FECHADO dentro da peca. */
 export type AdicionarRecorte = Envelope<
   'AdicionarRecorte',
@@ -378,6 +466,17 @@ export type Evento =
   | AdicionarPique
   | MoverPique
   | RemoverPique
+  | MoverControle
+  | DuplicarPeca
+  | DividirPeca
+  | AbrirPregas
+  | DefinirEncaixe
+  | RemoverPeca
+  | RemoverLinhaInterna
+  | RemoverRecorte
+  | DesmarcarGradePoint
+  | RemoverRegraGraduacao
+  | RemoverParCostura
   | DefinirEixoDobra
   | RemoverEixoDobra
   | EspelharPeca

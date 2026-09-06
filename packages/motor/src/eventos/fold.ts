@@ -19,9 +19,13 @@ import {
   excluirPonto,
   inserirPonto,
   modificarPonto,
+  moverControle,
   simplificarContorno,
 } from '../edicao.js';
 import { adicionarPique, moverPique, removerPique } from '../piques.js';
+import { duplicarPeca } from '../duplicar.js';
+import { dividirPeca } from '../dividir.js';
+import { abrirPregas } from '../pregas.js';
 import { espelharPeca, rotacionarPeca, transladarPeca } from '../transformar.js';
 import { VERSAO_SCHEMA_ATUAL, type Evento } from './tipos.js';
 
@@ -498,9 +502,136 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       };
     }
 
+    case 'MoverControle': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { segmentoId, indice, dx, dy } = evento.payload;
+      return comPeca(modelo, moverControle(peca, segmentoId, indice, dx, dy));
+    }
+
+    case 'DuplicarPeca': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { novoPecaId, prefixoId, dx, dy, comGraduacao } = evento.payload;
+      exigir(
+        modelo.pecas[novoPecaId] === undefined,
+        'PECA_DUPLICADA',
+        `Ja existe a peca "${novoPecaId}"; DuplicarPeca nao sobrescreve peca existente.`,
+        { eventoId: evento.id, pecaId: novoPecaId },
+      );
+      const { peca: copia, gradePointsNovos } = duplicarPeca(peca, novoPecaId, prefixoId, {
+        dx,
+        dy,
+      });
+
+      const comCopia = comPeca(modelo, copia);
+      if (!comGraduacao) return comCopia;
+
+      // As regras vivem no MODELO: copiar a peca sem copiar as regras deixaria a
+      // copia parada na graduacao. Cada regra que apontava para um grade point da
+      // original ganha uma gemea apontando para o correspondente da copia.
+      const regrasGraduacao = { ...comCopia.regrasGraduacao };
+      let n = 0;
+      for (const regra of Object.values(modelo.regrasGraduacao)) {
+        const novoGradePoint = gradePointsNovos.get(regra.pontoGraduacaoId);
+        if (novoGradePoint === undefined) continue;
+        const id = `${prefixoId}-r-${n++}`;
+        regrasGraduacao[id] = { ...regra, id, pontoGraduacaoId: novoGradePoint };
+      }
+      return { ...comCopia, regrasGraduacao };
+    }
+
+    case 'DividirPeca': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { p1, p2, margemNovaUM, prefixoId } = evento.payload;
+      const [parte1, parte2] = dividirPeca(peca, { p1, p2 }, margemNovaUM, prefixoId);
+      // A peca original DESAPARECE: ela nao existe mais depois de cortada, e
+      // deixa-la no modelo faria o encaixe contar tecido duas vezes.
+      const pecas = { ...modelo.pecas };
+      delete pecas[peca.id];
+      pecas[parte1.id] = parte1;
+      pecas[parte2.id] = parte2;
+      return { ...modelo, pecas };
+    }
+
+    case 'AbrirPregas': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { eixoIds, prefixoId } = evento.payload;
+      return comPeca(modelo, abrirPregas(peca, [...eixoIds], prefixoId));
+    }
+
+    case 'DefinirEncaixe': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      return comPeca(modelo, { ...peca, encaixe: evento.payload.encaixe });
+    }
+
+    case 'RemoverPeca': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      // ParCostura que apontava para uma aresta dela fica pendurado de proposito:
+      // apagar em cascata esconderia que uma costura perdeu o par. O validador acusa.
+      const pecas = { ...modelo.pecas };
+      delete pecas[peca.id];
+      return { ...modelo, pecas };
+    }
+
+    case 'RemoverLinhaInterna': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { linhaId } = evento.payload;
+      exigirDoMapa(peca.linhasInternas, linhaId, 'LINHA_INTERNA_INEXISTENTE', 'Linha interna');
+      const linhasInternas = { ...peca.linhasInternas };
+      delete linhasInternas[linhaId];
+      return comPeca(modelo, { ...peca, linhasInternas });
+    }
+
+    case 'RemoverRecorte': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { recorteId } = evento.payload;
+      exigirDoMapa(peca.recortes, recorteId, 'RECORTE_INEXISTENTE', 'Recorte');
+      const recortes = { ...peca.recortes };
+      delete recortes[recorteId];
+      return comPeca(modelo, { ...peca, recortes });
+    }
+
+    case 'DesmarcarGradePoint': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { gradePointId } = evento.payload;
+      exigirDoMapa(peca.gradePoints, gradePointId, 'GRADE_POINT_INEXISTENTE', 'Grade point');
+      // As regras que apontavam para ele NAO sao apagadas junto (ver o tipo do
+      // evento): elas ficam orfas e `validarModelo` acusa.
+      const gradePoints = { ...peca.gradePoints };
+      delete gradePoints[gradePointId];
+      return comPeca(modelo, { ...peca, gradePoints });
+    }
+
+    case 'RemoverRegraGraduacao': {
+      const { regraId } = evento.payload;
+      exigirDoMapa(
+        modelo.regrasGraduacao,
+        regraId,
+        'REGRA_GRADUACAO_INEXISTENTE',
+        'Regra de graduacao',
+      );
+      const regrasGraduacao = { ...modelo.regrasGraduacao };
+      delete regrasGraduacao[regraId];
+      return { ...modelo, regrasGraduacao };
+    }
+
+    case 'RemoverParCostura': {
+      const { parId } = evento.payload;
+      exigirDoMapa(modelo.paresCostura, parId, 'PAR_COSTURA_INEXISTENTE', 'Par de costura');
+      const paresCostura = { ...modelo.paresCostura };
+      delete paresCostura[parId];
+      return { ...modelo, paresCostura };
+    }
+
     case 'DefinirMetadados': {
       const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
       const { nome, descricao } = evento.payload;
+      exigir(
+        nome.trim().length > 0,
+        'NOME_VAZIO',
+        `A peca "${peca.id}" ficaria sem nome. Uma peca sem nome no molde e uma peca ` +
+          `que ninguem acha na hora do corte.`,
+        { eventoId: evento.id, pecaId: peca.id },
+      );
       const metadados = descricao === undefined ? { nome } : { nome, descricao };
       return comPeca(modelo, { ...peca, metadados });
     }

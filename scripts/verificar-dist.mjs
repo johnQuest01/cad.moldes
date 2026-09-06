@@ -94,6 +94,30 @@ conferir(
   `${largura / motor.MM} x ${altura / motor.MM} mm, ${corte.length} vertices`,
 );
 
+// Bloco 0 da Fase 2: as operacoes que o editor vai chamar tem que estar no
+// `exports`, e tem que CALCULAR — importar sem executar nao prova artefato.
+const curva = motor.moverControle(
+  motor.converterSegmento(peca, 'sg-1', 'curva'),
+  'sg-1',
+  0,
+  30 * motor.MM,
+  0,
+);
+conferir(
+  'moverControle do artefato construido',
+  motor.medirAresta(curva, 'ar-1') > motor.medirAresta(peca, 'ar-1'),
+  `${motor.umParaMM(motor.medirAresta(peca, 'ar-1'))} -> ${motor.umParaMM(motor.medirAresta(curva, 'ar-1'))} mm`,
+);
+
+const { peca: copia } = motor.duplicarPeca(peca, 'p2', 'cp', { dx: 300 * motor.MM, dy: 0 });
+const mesmosIds = Object.keys(copia.pontos).filter((id) => peca.pontos[id] !== undefined);
+conferir(
+  'duplicarPeca do artefato construido',
+  mesmosIds.length === 0 &&
+    motor.area(motor.anelDoContorno(copia)) === motor.area(motor.anelDoContorno(peca)),
+  `${mesmosIds.length} ids em comum, mesma area`,
+);
+
 console.log('@cad/persistencia');
 const persistencia = await import('@cad/persistencia');
 conferir('exporta o repositorio', typeof persistencia.RepositorioDeEventos === 'function');

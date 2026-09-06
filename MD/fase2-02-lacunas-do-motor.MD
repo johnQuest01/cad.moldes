@@ -38,6 +38,8 @@ E os gestos que o editor precisa e o motor não representa:
 
 **Total do Bloco 0: 11 eventos e 2 operações novas.**
 
+> **Estado: fechado.** Ver "O que a implementação mostrou", no fim desta parte.
+
 ---
 
 ## 1. `moverControle` — a curva ganha forma
@@ -214,8 +216,11 @@ remover o que não existe é erro, não no-op.
 | `RemoverRegraGraduacao` | `{ regraId }` | a regra não existe |
 | `RemoverParCostura` | `{ parId }` | o par não existe |
 | `RemoverPeca` | `{}` (peça no envelope) | a peça não existe |
-| `RenomearPeca` | `{ nome }` | a peça não existe, ou nome vazio |
 | `DefinirEncaixe` | `{ encaixe: PropriedadesEncaixe }` | a peça não existe |
+
+**Renomear já existe:** `DefinirMetadados` cobre nome e descrição. Não criar um `RenomearPeca` —
+seria um segundo caminho para a mesma coisa. O que faltava nele era a validação: nome em branco
+passa a ser recusado com `NOME_VAZIO`, porque peça sem nome ninguém acha na hora do corte.
 
 **Duas regras de integridade que o fold precisa aplicar, e que não são óbvias:**
 
@@ -252,6 +257,104 @@ NOME_VAZIO                  RenomearPeca com nome em branco
   mudou de forma. Um log antigo reconstrói igual — e isso é um teste, não uma afirmação.
 - Os 11 eventos aparecem no `TipoEvento` e têm `case` no fold; nenhum ramo morto.
 - Cada operação nova é exportada em `index.ts` e coberta por `scripts/verificar-dist.mjs`.
-- **Teste de exaustividade**: um teste que percorre `TipoEvento` e falha se algum tipo não tiver
-  `case` no fold. Sem ele, o próximo evento esquecido só aparece em produção.
+- **Exaustividade já é do compilador.** O `default` do fold faz `const naoTratado: never = evento`,
+  então um tipo novo sem `case` **não compila**. É garantia mais forte que um teste. O que o teste
+  cobre é o outro lado: um evento com `tipo` desconhecido chegando em tempo de execução (log de uma
+  versão futura) tem que **estourar**, não ser ignorado em silêncio.
 - Os 201 testes anteriores continuam passando, com o número colado.
+
+
+---
+
+## O que a implementação mostrou — Bloco 0 fechado
+
+**21 testes novos** (`tests/bloco0.test.ts`). O motor foi de 164 para **185**; com persistência (18)
+e API (19), são **222**.
+
+### `moverControle`
+
+A conta que justifica a operação existir, medida:
+
+```
+--- comprimento da lateral direita (100 x 200 mm) ---
+reta                       200 mm
+convertida em curva        200 mm      <- converter nao muda medida nenhuma
+controle 0 empurrado 30 mm 202.644 mm  <- e agora a curva tem forma
+
+extremos: inicio (100, 0) -> (100, 0) mm | fim (100, 200) -> (100, 200) mm
+ida e volta (dx, dy) e (-dx, -dy): peca IDENTICA
+```
+
+E o pique numa aresta curva continua acompanhando a graduação, que era a dúvida legítima — mexer no
+controle não desancorou nada:
+
+```
+P: s = 0.5 | (104.4,  94.6) mm
+M: s = 0.5 | (109.4,  99.6) mm
+G: s = 0.5 | (114.4, 104.6) mm
+```
+
+Recusas: `SEGMENTO_NAO_E_CURVA`, `CONTROLE_INEXISTENTE`, `SEGMENTO_INEXISTENTE`, `UM_NAO_INTEIRO`.
+
+### `duplicarPeca`
+
+```
+area   original 200.0 cm2 | copia 200.0 cm2
+  ar-baixo     100 mm -> 100 mm
+  ar-direita   200 mm -> 200 mm
+  ar-cima      100 mm -> 100 mm
+  ar-esquerda  200 mm -> 200 mm
+ids em comum: 0
+
+puxar 30 mm na copia: original 100 mm | copia 130 mm
+
+com comGraduacao:  P 95 | M 100 | G 105 mm (igual a original)
+sem comGraduacao:  P 100 | M 100 | G 100 mm — parada, e o validador acusa GRADE_POINT_SEM_REGRA
+```
+
+### `DividirPeca` e `AbrirPregas` pelo log
+
+```
+divisao:  reconstruir pelo log == dividirPeca chamada na mao (canonico identico)
+          a peca original DESAPARECE; entram -1 e -2
+          inteira 264.0 cm2 | partes 288.0 cm2 | a mais 24.0 cm2
+pregas:   acabada 200 mm -> plana 320 mm (conta manual: 200 + 3 x 2 x 20 = 320)
+          os piques de prega passam a existir no modelo reconstruido
+```
+
+### As remoções, e as duas referências que sobrevivem de propósito
+
+```
+RemoverLinhaInterna    no que nao existe -> LINHA_INTERNA_INEXISTENTE
+DesmarcarGradePoint    no que nao existe -> GRADE_POINT_INEXISTENTE
+RemoverRecorte         no que nao existe -> RECORTE_INEXISTENTE
+RemoverRegraGraduacao  no que nao existe -> REGRA_GRADUACAO_INEXISTENTE
+RemoverParCostura      no que nao existe -> PAR_COSTURA_INEXISTENTE
+
+desmarcar grade point: regras no modelo 2 (nao apagadas em cascata)
+                       REGRA_SEM_GRADE_POINT: antes 0 -> depois 2
+remover peca:          pecas 2 -> 1, pares de costura ainda no modelo: 1
+                       PAR_COSTURA_PENDENTE: antes 0 -> depois 1
+```
+
+As duas últimas são a decisão de projeto desta parte, e a implementação confirmou que ela se paga:
+apagar em cascata teria escondido do modelista que ele acabou de perder a graduação de um ponto e
+que uma costura ficou sem par. O motor prefere gritar.
+
+### Compatibilidade
+
+```
+VERSAO_SCHEMA_ATUAL = 1
+log antigo (18 eventos) reconstroi: 1 peca, 100 mm de bainha
+tipo de evento desconhecido -> EVENTO_VERSAO_DESCONHECIDA (estoura, nao ignora)
+```
+
+`scripts/verificar-dist.mjs` ganhou as duas operações novas — importa pelo nome do pacote e faz
+cada uma **calcular**:
+
+```
+  ok   moverControle do artefato construido (200 -> 202.644 mm)
+  ok   duplicarPeca do artefato construido (0 ids em comum, mesma area)
+```
+
+**Próximo:** Bloco 1 — `@cad/editor`, sessão e câmera (Parte 1).

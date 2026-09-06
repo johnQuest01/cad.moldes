@@ -353,6 +353,80 @@ export function converterSegmento(peca: Peca, segmentoId: Id, para: 'reta' | 'cu
 }
 
 // ===========================================================================
+// Operacao 12b — mover controle de Bezier (Bloco 0 da Fase 2)
+// ===========================================================================
+
+/**
+ * Move UM dos dois controles de um segmento curvo. Nao muta a entrada.
+ *
+ * ## Por que isto faltava, e por que faz falta
+ * `converterSegmento(peca, id, 'curva')` poe os controles a 1/3 e 2/3 da propria
+ * reta — a Bezier nasce geometricamente IDENTICA a reta, de proposito, para
+ * converter nao mudar medida nenhuma. So que ate agora nao havia como mexer nesses
+ * controles depois: o segmento virava curva e continuava reto para sempre. Cava e
+ * decote, que sao a razao de existir da Bezier num molde, ficavam impossiveis de
+ * desenhar. Esta e a operacao que da forma a curva.
+ *
+ * ## O que ela NAO faz
+ * Nao toca nos extremos. Mover controle muda a barriga da curva, nunca onde ela
+ * comeca e termina — e essa separacao que permite a aresta vizinha continuar
+ * casando e o ponto continuar sendo grade point da mesma regra.
+ */
+export function moverControle(
+  peca: Peca,
+  segmentoId: Id,
+  indice: 0 | 1,
+  dx: UM,
+  dy: UM,
+): Peca {
+  const segmento = exigirDoMapa(peca.segmentos, segmentoId, 'SEGMENTO_INEXISTENTE', 'Segmento');
+  exigir(
+    segmento.tipo === 'curva' && segmento.controles !== undefined,
+    'SEGMENTO_NAO_E_CURVA',
+    `O segmento "${segmentoId}" da peca "${peca.metadados.nome}" e do tipo "${segmento.tipo}" e ` +
+      `nao tem controle para mover. Converta para curva antes.`,
+    { pecaId: peca.id, segmentoId },
+  );
+  exigir(
+    indice === 0 || indice === 1,
+    'CONTROLE_INEXISTENTE',
+    `Uma Bezier cubica tem exatamente dois controles (0 e 1); recebi o indice ` +
+      `${String(indice)}.`,
+    { pecaId: peca.id, segmentoId, indice },
+  );
+  exigirUM(dx, 'dx de moverControle');
+  exigirUM(dy, 'dy de moverControle');
+
+  const controles = segmento.controles;
+  const movido: Vetor2 = { x: controles[indice].x + dx, y: controles[indice].y + dy };
+  const novos: [Vetor2, Vetor2] =
+    indice === 0 ? [movido, controles[1]] : [controles[0], movido];
+
+  const de = coordenada(peca, segmento.de);
+  const para = coordenada(peca, segmento.para);
+  exigir(
+    !todosNoMesmoLugar([de, novos[0], novos[1], para]),
+    'CURVA_DEGENERADA',
+    `Mover o controle ${indice} do segmento "${segmentoId}" colapsaria a curva num ponto ` +
+      `so. Uma curva de comprimento zero nao tem como ser cortada nem medida.`,
+    { pecaId: peca.id, segmentoId },
+  );
+
+  return {
+    ...peca,
+    segmentos: {
+      ...peca.segmentos,
+      [segmentoId]: { ...segmento, tipo: 'curva', controles: novos },
+    },
+  };
+}
+
+function todosNoMesmoLugar(pontos: readonly Vetor2[]): boolean {
+  const primeiro = pontos[0]!;
+  return pontos.every((p) => p.x === primeiro.x && p.y === primeiro.y);
+}
+
+// ===========================================================================
 // Operacao 10 — arredondar (fillet) e chanfrar
 // ===========================================================================
 

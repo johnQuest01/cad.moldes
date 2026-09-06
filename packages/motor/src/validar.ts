@@ -74,7 +74,51 @@ export function validarModelo(modelo: Modelo): Problema[] {
     problemas.push(...validarInconsistencias(modelo, pecaId));
   }
   problemas.push(...comoProblemas(() => validarCasamento(modelo)));
+  conferirReferenciasDoModelo(modelo, problemas);
   return problemas;
+}
+
+/**
+ * As duas referencias que sobrevivem a uma remocao — de proposito.
+ *
+ * `DesmarcarGradePoint` nao apaga as regras dele em cascata, e `RemoverPeca` nao
+ * apaga os pares de costura que apontavam para ela. Apagar em silencio esconderia
+ * do modelista que ele acabou de perder a graduacao de um ponto, ou que uma
+ * costura ficou sem par. O motor prefere gritar: e aqui que ele grita.
+ */
+function conferirReferenciasDoModelo(modelo: Modelo, problemas: Problema[]): void {
+  const gradePoints = new Set<Id>();
+  const arestas = new Map<Id, Id>();
+  for (const peca of Object.values(modelo.pecas)) {
+    for (const id of Object.keys(peca.gradePoints)) gradePoints.add(id);
+    for (const id of Object.keys(peca.arestas)) arestas.set(id, peca.id);
+  }
+
+  for (const regra of Object.values(modelo.regrasGraduacao)) {
+    if (gradePoints.has(regra.pontoGraduacaoId)) continue;
+    problemas.push({
+      gravidade: 'erro',
+      codigo: 'REGRA_SEM_GRADE_POINT',
+      mensagem:
+        `A regra "${regra.id}" (${regra.deTamanho} -> ${regra.paraTamanho}) aponta para o ` +
+        `grade point "${regra.pontoGraduacaoId}", que nao existe mais em nenhuma peca. ` +
+        `A graduacao desse ponto foi perdida.`,
+    });
+  }
+
+  for (const par of Object.values(modelo.paresCostura)) {
+    for (const arestaId of [par.arestaA, par.arestaB]) {
+      if (arestas.has(arestaId)) continue;
+      problemas.push({
+        gravidade: 'erro',
+        codigo: 'PAR_COSTURA_PENDENTE',
+        mensagem:
+          `O par de costura "${par.id}" aponta para a aresta "${arestaId}", que nao existe ` +
+          `mais no modelo. Uma costura sem par nao fecha na maquina.`,
+        arestaId,
+      });
+    }
+  }
 }
 
 /** Roda uma acao que devolve problemas, virando o ErroMotor dela em problema. */

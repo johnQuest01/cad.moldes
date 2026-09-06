@@ -44,4 +44,7 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
 
 ## Estado
 
-Especificação escrita; **nada implementado ainda**. O próximo passo é o **Bloco 0** (Parte 2).
+- **Bloco 0 — fechado.** Os 11 eventos e as 2 operações estão no motor, com **21 testes novos** e o
+  número colado no fim da Parte 2. O motor foi de 164 para **185 testes**; com persistência e API,
+  **222**. `VERSAO_SCHEMA_ATUAL` continua 1: log antigo reconstrói igual.
+- **Blocos 1 a 8 — a fazer.** O próximo é o Bloco 1: `@cad/editor`, sessão e câmera (Parte 1).
