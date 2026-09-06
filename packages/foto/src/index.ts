@@ -26,3 +26,22 @@ export {
   type Homografia,
   type PontoImagem,
 } from './homografia.js';
+
+export {
+  LIMIAR_CROMA_PARDO,
+  LIMIAR_LUZ_BORDA,
+  segmentar,
+  type Imagem,
+  type Mascara,
+  type OpcoesDeSegmentacao,
+  type Segmentacao,
+} from './imagem.js';
+
+export {
+  buracosDe,
+  contornoDaRegiao,
+  preencherBuracos,
+  rotular,
+  type Regiao,
+  type Rotulagem,
+} from './regioes.js';

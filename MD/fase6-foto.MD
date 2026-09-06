@@ -273,6 +273,59 @@ inclinada 12 graus, sobre o quadro real de 138 × 72 cm (1,165 px/mm):
 | Diagonais fora por 9 mm | `DIAGONAIS_DESIGUAIS` |
 | Largura digitada 1350 em vez de 1380, diagonais concordando | `NAO_E_RETANGULO` (pego por Pitágoras) |
 
+### Medido na foto real (`parede-01.png`, 1025 × 630 px)
+
+O pipeline até o contorno rodou na foto do ateliê — quadro de 138 × 72 cm, treze… **onze**
+moldes de papel pardo, ímãs, sombra, reflexo e escrita à mão:
+
+| | Resultado |
+|---|---|
+| Papel pardo detectado | **44,1%** da imagem |
+| Branco neutro (a borda recortada do quadro) | **7,9%** |
+| Peças achadas | **11**, todas separadas, nenhuma grudada na vizinha |
+| Buracos tapados (ímãs) | **14** |
+| Contorno da maior peça | **1103 pontos**, caixa 419 × 215 px |
+| Caixa do contorno × caixa da região | **idênticas** — o passeio não cortou caminho por dentro |
+| Marcas brancas da borda | **156** com 20 px ou mais |
+
+A conferência visual está em `npm run regioes -w @cad/foto`, que pinta cada região por cima da
+foto. Papel que sobra fora de toda região sai em **branco**, de propósito: é o que denuncia limiar
+apertado demais. Na foto do ateliê não sobrou nada.
+
+### O achado que mudou o método: **croma, não brilho**
+
+O palpite natural é limiar de brilho — papel claro sobre fundo escuro. Medido, é o caminho errado.
+Luminância dentro do quadro sai espalhada, sem vale:
+
+```
+lum  16:8,4%  32:11,4%  48:16,0%  64:4,9%  80:3,1%  96:2,4%  112:3,9%  128:4,1%
+    144:9,2%  160:14,0%  176:17,2%  192:4,4%
+```
+
+O motivo é físico: o quadro preto tem **reflexo especular** e o papel tem **sombra**. Os dois
+invadem a faixa de brilho um do outro — na foto do ateliê existe reflexo no preto **mais claro**
+que papel em sombra. Qualquer limiar de brilho que pegue o papel pega o reflexo junto.
+
+Já `R − B` — o quanto o pixel puxa para o quente — é limpo:
+
+```
+R−B   0:15,2%   8:12,3%  16:10,5%  24:5,4% | 32:1,8%  40:0,9%  48:0,8%  56:0,8%
+     64:0,9%  72:0,9%  80:1,0%  88:1,4% | 96:3,5%  104:26,6%  112:17,1%  120:0,9%
+      └─ fundo preto e borda branca: 38% ─┘  vale 7,7%  └─── papel pardo: 48% ───┘
+```
+
+Sombra não muda o croma do pardo, e reflexo não pinta o preto de marrom. O limiar fica em **60**,
+que é o meio do vale — não número escolhido a dedo.
+
+Para a borda branca, o mesmo tratamento, olhando só os pixels neutros: o preto do quadro morre em
+96, a borda começa em 224, e o limiar fica em **160**.
+
+### Uma limitação da foto que já está medida
+
+Esta foto tem 1025 px para 1380 mm: **1 px = 1,35 mm**. Serve para desenvolver e depurar o pipeline
+inteiro — e serviu —, mas **não** serve para o teste de precisão T1: o erro do contorno sairia
+dominado pela resolução, não pelo método. O T1 exige o arquivo original da câmera.
+
 Se T1 não couber em 1 mm, o protocolo muda até caber — mais marcadores, mais distância, calibração
 de lente. Se ainda assim não couber, o número vai **na tela** (I11).
 
