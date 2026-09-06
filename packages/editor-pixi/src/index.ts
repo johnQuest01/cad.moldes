@@ -82,6 +82,7 @@ export class Tela {
   readonly #textos: Text[] = [];
   #opcoes: OpcoesDaTela;
   #assinatura = '';
+  #observador: ResizeObserver | null = null;
 
   constructor(editor: Editor, opcoes: OpcoesDaTela) {
     this.#editor = editor;
@@ -107,6 +108,21 @@ export class Tela {
     this.app.stage.addChild(this.#mundo, this.#overlay);
     this.app.stage.eventMode = 'static';
     this.ajustar();
+
+    // O `resizeTo` do Pixi so escuta o RESIZE DA JANELA. Mas o canvas mora numa
+    // grade, e ela muda de tamanho sem a janela mudar: fonte que termina de
+    // carregar, painel que abre, a propria montagem da pagina. Quando isso
+    // acontece a camera fica com o tamanho velho, e ai o cursor mira num lugar
+    // diferente do que a pessoa ve — o mesmo defeito que fazia o pique nao pegar
+    // no contorno. O observador fecha esse buraco na raiz, para todo consumidor.
+    if (typeof ResizeObserver === 'function') {
+      this.#observador = new ResizeObserver(() => {
+        this.app.resize();
+        this.ajustar();
+        this.render({}, true);
+      });
+      this.#observador.observe(pai);
+    }
   }
 
   trocarTema(opcoes: OpcoesDaTela): void {
@@ -228,6 +244,8 @@ export class Tela {
   }
 
   destruir(): void {
+    this.#observador?.disconnect();
+    this.#observador = null;
     this.app.destroy(true, { children: true });
   }
 }

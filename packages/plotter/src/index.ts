@@ -12,10 +12,18 @@
  * perde nada que a geometria tenha garantido.
  *
  * ## O que este pacote NAO faz
- * **Nao encaixa.** As pecas saem enfileiradas ao longo do rolo, na ordem em que
- * estao no modelo, com um vao entre elas. Encaixe de verdade — girar, aninhar,
- * economizar tecido — e a Fase 5, e fingir que uma fila e um encaixe seria vender
- * economia que nao existe.
+ * **Nao encaixa.** Sozinho, as pecas saem enfileiradas ao longo do rolo, na ordem
+ * em que estao no modelo, com um vao entre elas. Encaixe de verdade — girar,
+ * aninhar, economizar tecido — e o `@cad/encaixe` (Fase 5), e fingir que uma fila
+ * e um encaixe seria vender economia que nao existe.
+ *
+ * Quem quer o encaixe passa as pecas prontas em `pecasPostas`: o plotter desenha
+ * onde elas estao e nao enfileira nada. A dependencia fica de fora de proposito —
+ * este pacote so sabe virar geometria em HPGL.
+ *
+ * ## Os eixos
+ * A **largura do rolo e X**; a fila corre em **+Y**. E a mesma convencao do
+ * `@cad/encaixe`, e por isso a saida dele cai aqui sem nenhuma conversao.
  */
 import {
   ErroMotor,
@@ -56,6 +64,14 @@ export interface OpcoesDoPlotter {
   /** Desenhar fio e linhas internas. */
   readonly comInternas?: boolean;
   readonly comPiques?: boolean;
+  /**
+   * Pecas JA POSTAS — pelo encaixe da Fase 5, ou por qualquer outra coisa.
+   *
+   * Quando vem, o plotter NAO enfileira: desenha cada peca exatamente onde ela
+   * esta. A largura util continua sendo conferida, porque um desenho que passa da
+   * borda do rolo nao sai no papel: sai pela metade.
+   */
+  readonly pecasPostas?: readonly Peca[];
 }
 
 export interface SaidaDoPlotter {
@@ -81,6 +97,53 @@ export function gerarHpgl(modelo: Modelo, opcoes: OpcoesDoPlotter = {}): SaidaDo
   const comandos: string[] = ['IN;', 'SP1;', 'PA;'];
   let cursor = 0;
   let plotadas = 0;
+
+  if (opcoes.pecasPostas !== undefined) {
+    let fim = 0;
+    for (const posta of opcoes.pecasPostas) {
+      let corte: readonly Vetor2[];
+      try {
+        corte = offsetMargem(posta).pontos;
+      } catch (erro) {
+        if (!(erro instanceof ErroMotor)) throw erro;
+        problemas.push(
+          problema(
+            'erro',
+            erro.codigo,
+            `A peca "${posta.metadados.nome}" nao tem linha de corte e nao foi plotada: ${erro.message}`,
+            posta.id,
+          ),
+        );
+        continue;
+      }
+
+      const caixa = caixaDe(corte);
+      if (util !== null && (caixa.minX < 0 || caixa.maxX > util)) {
+        problemas.push(
+          problema(
+            'erro',
+            'PECA_MAIS_LARGA_QUE_O_PAPEL',
+            `A peca "${posta.metadados.nome}" foi posta em x ${caixa.minX}..${caixa.maxX} UM, ` +
+              `fora dos ${util} UM uteis do rolo. Nao foi plotada.`,
+            posta.id,
+          ),
+        );
+        continue;
+      }
+
+      comandos.push(...desenharPeca(posta, opcoes, problemas));
+      fim = Math.max(fim, caixa.maxY);
+      plotadas++;
+    }
+
+    comandos.push('PU;', 'SP0;', 'IN;');
+    return {
+      hpgl: comandos.join('\n') + '\n',
+      problemas,
+      comprimentoUsadoUM: fim,
+      pecasPlotadas: plotadas,
+    };
+  }
 
   for (const pecaId of Object.keys(modelo.pecas)) {
     let peca: Peca;

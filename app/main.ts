@@ -36,6 +36,7 @@ import {
 import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pixi';
 import { exportarDxf } from '@cad/dxf';
 import { gerarHpgl } from '@cad/plotter';
+import { aplicarEncaixe, encaixar, type Encaixe } from '@cad/encaixe';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   type Id,
@@ -43,6 +44,7 @@ import {
   MM,
   criarGeradorMonotonico,
   medirAresta,
+  offsetMargem,
   umParaMM,
   type TipoPique,
 } from '@cad/motor';
@@ -375,6 +377,105 @@ em('#exportar-hpgl').addEventListener('click', () => {
   baixar(`${MODELO}-${editor.cena.tamanho}.plt`, saida.hpgl);
   em('#estado-salvo').textContent =
     `HPGL: ${saida.pecasPlotadas} peça(s), ${mm(saida.comprimentoUsadoUM)} mm de rolo` +
+    (saida.problemas.length > 0 ? ` | ${saida.problemas.length} problema(s)` : '');
+});
+
+/**
+ * O encaixe da vez. Guardado porque as tres acoes do painel — a conta, o risco e o
+ * HPGL — tem que falar do MESMO encaixe: recalcular a cada clique daria tres
+ * arranjos parecidos e diferentes, e o operador cortaria por um enquanto olha outro.
+ */
+let encaixeAtual: Encaixe | null = null;
+
+function rodarEncaixe(): Encaixe {
+  encaixeAtual = encaixar(sessao.modelo, { tamanho: editor.cena.tamanho });
+  const erros = encaixeAtual.problemas.filter((p) => p.gravidade === 'erro');
+  em('#estado-encaixe').textContent =
+    encaixeAtual.colocacoes.length === 0
+      ? `Nada encaixado: ${encaixeAtual.problemas[0]?.mensagem ?? 'sem peças.'}`
+      : `${encaixeAtual.colocacoes.length} peça(s) em ${mm(encaixeAtual.comprimentoUsadoUM)} mm de ` +
+        `rolo (${mm(encaixeAtual.larguraUtilUM)} mm úteis) | aproveitamento ` +
+        `${(encaixeAtual.aproveitamento * 100).toFixed(1)}%` +
+        (erros.length > 0 ? ` | ${erros.length} peça(s) recusada(s): ${erros[0]!.mensagem}` : '');
+  return encaixeAtual;
+}
+
+const encaixeVigente = (): Encaixe => encaixeAtual ?? rodarEncaixe();
+
+/**
+ * O risco em SVG: a faixa do tecido e a linha de CORTE de cada peca, onde o
+ * encaixe a pos. E o desenho que o corte confere antes de gastar o rolo.
+ */
+function svgDoRisco(encaixe: Encaixe): string {
+  const postas = aplicarEncaixe(sessao.modelo, encaixe, editor.cena.tamanho);
+  const larguraMM = encaixe.larguraUtilUM / MM;
+  const comprimentoMM = Math.max(1, encaixe.comprimentoUsadoUM / MM);
+  const caminhos = postas
+    .map(({ peca }) => {
+      const corte = offsetMargem(peca).pontos;
+      const d = corte.map((p, i) => `${i === 0 ? 'M' : 'L'}${(p.x / MM).toFixed(1)},${(p.y / MM).toFixed(1)}`).join(' ');
+      const cx = corte.reduce((s, p) => s + p.x, 0) / corte.length / MM;
+      const cy = corte.reduce((s, p) => s + p.y, 0) / corte.length / MM;
+      return (
+        `<path d="${d} Z" fill="#e8eef6" stroke="#1b3a5c" stroke-width="1.2"/>` +
+        `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" font-size="14" text-anchor="middle" ` +
+        `fill="#1b3a5c">${peca.metadados.nome}</text>`
+      );
+    })
+    .join('\n');
+  // O SVG e desenhado em MILIMETROS, com y para baixo: e como o risco sai no papel.
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${larguraMM.toFixed(0)}mm" ` +
+    `height="${comprimentoMM.toFixed(0)}mm" viewBox="0 0 ${larguraMM.toFixed(1)} ${comprimentoMM.toFixed(1)}">\n` +
+    `<rect x="0" y="0" width="${larguraMM.toFixed(1)}" height="${comprimentoMM.toFixed(1)}" ` +
+    `fill="#fff" stroke="#c33" stroke-width="1.5" stroke-dasharray="8 6"/>\n${caminhos}\n</svg>\n`
+  );
+}
+
+em('#encaixar').addEventListener('click', () => {
+  rodarEncaixe();
+});
+
+/**
+ * O risco aparece POR CIMA do editor, e nao numa aba nova.
+ *
+ * Aba nova morre em bloqueador de popup, e vai morrer de novo dentro do wrap
+ * Tauri, onde nao ha aba nenhuma. O operador que quer o arquivo tem o botao de
+ * baixar ali do lado.
+ */
+em('#ver-risco').addEventListener('click', () => {
+  const encaixe = encaixeVigente();
+  em('#risco-papel').innerHTML = svgDoRisco(encaixe);
+  em('#risco-conta').textContent =
+    `${encaixe.colocacoes.length} peça(s) · ${mm(encaixe.larguraUtilUM)} × ` +
+    `${mm(encaixe.comprimentoUsadoUM)} mm · aproveitamento ` +
+    `${(encaixe.aproveitamento * 100).toFixed(1)}%`;
+  em('#risco').hidden = false;
+});
+
+const fecharRisco = (): void => {
+  em('#risco').hidden = true;
+  em('#risco-papel').innerHTML = '';
+};
+em('#risco-fechar').addEventListener('click', fecharRisco);
+em('#risco').addEventListener('click', (evento) => {
+  if (evento.target === em('#risco') || evento.target === em('#risco-papel')) fecharRisco();
+});
+em('#risco-baixar').addEventListener('click', () => {
+  baixar(`${MODELO}-${editor.cena.tamanho}-risco.svg`, svgDoRisco(encaixeVigente()));
+});
+
+em('#exportar-hpgl-encaixe').addEventListener('click', () => {
+  const encaixe = encaixeVigente();
+  const postas = aplicarEncaixe(sessao.modelo, encaixe, editor.cena.tamanho).map((c) => c.peca);
+  const saida = gerarHpgl(sessao.modelo, {
+    tamanho: editor.cena.tamanho,
+    comCostura: true,
+    pecasPostas: postas,
+  });
+  baixar(`${MODELO}-${editor.cena.tamanho}-encaixado.plt`, saida.hpgl);
+  em('#estado-encaixe').textContent =
+    `HPGL encaixado: ${saida.pecasPlotadas} peça(s), ${mm(saida.comprimentoUsadoUM)} mm de rolo` +
     (saida.problemas.length > 0 ? ` | ${saida.problemas.length} problema(s)` : '');
 });
 

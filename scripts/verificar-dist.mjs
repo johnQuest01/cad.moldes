@@ -186,6 +186,31 @@ conferir(
   `${linhas.length} comandos, ${motor.umParaMM(hpgl.comprimentoUsadoUM)} mm de rolo`,
 );
 
+console.log('@cad/encaixe');
+const encaixePkg = await import('@cad/encaixe');
+const modeloParaEncaixar = motor.reconstruir(log);
+// O modelo do fixture nao tem papel: a largura vai explicita, que e o outro
+// caminho suportado — e encaixar sem largura nenhuma tem que RECUSAR.
+const semRolo = encaixePkg.encaixar(modeloParaEncaixar);
+const comRolo = encaixePkg.encaixar(modeloParaEncaixar, { larguraUtilUM: 1580 * motor.MM });
+conferir(
+  'encaixar sem largura de rolo recusa, com largura coloca',
+  semRolo.colocacoes.length === 0 &&
+    semRolo.problemas[0]?.codigo === 'PAPEL_INVALIDO' &&
+    comRolo.colocacoes.length === 1,
+  `sem rolo: ${semRolo.problemas[0]?.codigo} | com rolo: ${comRolo.colocacoes.length} peca em ` +
+    `${motor.umParaMM(comRolo.comprimentoUsadoUM)} mm`,
+);
+
+// A costura entre as duas fases: o que o encaixe posiciona, o plotter desenha.
+const postas = encaixePkg.aplicarEncaixe(modeloParaEncaixar, comRolo).map((c) => c.peca);
+const hpglEncaixado = plotter.gerarHpgl(modeloParaEncaixar, { pecasPostas: postas });
+conferir(
+  'o encaixe do artefato construido cai no HPGL',
+  hpglEncaixado.pecasPlotadas === 1 && hpglEncaixado.problemas.length === 0,
+  `${hpglEncaixado.pecasPlotadas} peca plotada, ${motor.umParaMM(hpglEncaixado.comprimentoUsadoUM)} mm de rolo`,
+);
+
 console.log('@cad/api');
 const api = await import('@cad/api');
 conferir('exporta criarServidor', typeof api.criarServidor === 'function');

@@ -1,8 +1,8 @@
-# cad.moldes — Fase 1
+# cad.moldes
 
 Motor geométrico 2D para modelagem de moldes de confecção, em TypeScript puro, mais a persistência
-por log de eventos e o backend. **Fases 1, 2, 3 e a geração de HPGL da 4: 393 testes passando** (192 motor + 141 editor + 14 DXF +
-9 plotter + 18 persistência + 19 API).
+por log de eventos e o backend. **Fases 1 a 5: 404 testes passando** (192 motor + 141 editor + 14 DXF + 9 plotter +
+11 encaixe + 18 persistência + 19 API).
 
 A especificação normativa está em [`MD/`](MD/README-fase1.MD) — comece pelo índice. A **Parte 6**
 diz onde o código está e traz cada decisão com o número medido que a sustenta.
@@ -19,6 +19,7 @@ diz onde o código está e traz cada decisão com o número medido que a sustent
 | `app/` | o editor |
 | `@cad/dxf` | importar e exportar DXF-AAMA/ASTM |
 | `@cad/plotter` | gerar HPGL para a plotadora e a cortadora |
+| `@cad/encaixe` | encaixar as peças na faixa do tecido, por No-Fit Polygon |
 | `demo/` | o motor rodando no navegador, com o cursor |
 
 ## Rodar
@@ -52,5 +53,5 @@ Estão na [Parte 0](MD/fase1-00-protocolo.MD), e valem para qualquer coisa que e
 
 ## O que fica para as próximas fases
 
-O wrap Tauri, que é o que dá acesso à porta serial para mandar o HPGL à máquina (Fase 4), e o
-encaixe (Fase 5).
+O wrap Tauri, que é o que dá acesso à porta serial para mandar o HPGL à máquina, e a
+digitalização de molde por foto (Fase 6).

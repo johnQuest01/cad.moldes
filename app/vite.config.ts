@@ -18,6 +18,7 @@ export default defineConfig({
       '@cad/editor-pixi': fonte('editor-pixi'),
       '@cad/dxf': fonte('dxf'),
       '@cad/plotter': fonte('plotter'),
+      '@cad/encaixe': fonte('encaixe'),
     },
   },
   build: { outDir: 'dist', emptyOutDir: true },

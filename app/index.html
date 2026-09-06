@@ -125,9 +125,34 @@
   .evt .t { color: var(--costura); }
   .nota { margin: 0; color: var(--fraco); font-size: 11.5px; line-height: 1.6; }
   [hidden] { display: none !important; }
+
+  /* O risco: a faixa do tecido em tamanho de tela, por cima de tudo. */
+  #risco {
+    position: fixed; inset: 0; z-index: 50; display: grid; grid-template-rows: auto 1fr;
+    background: rgba(8, 12, 18, 0.86); backdrop-filter: blur(2px);
+  }
+  #risco-barra {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    color: #eef2f7; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.14);
+  }
+  #risco-barra b { font: 500 12.5px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+  #risco-barra button { width: auto; padding: 6px 12px; }
+  #risco-papel { overflow: auto; display: grid; place-items: start center; padding: 16px; }
+  /* O SVG sai em MILIMETROS (para imprimir e para baixar); na tela ele cabe na largura. */
+  #risco-papel svg { width: 100%; height: auto; max-width: 100%; background: #fff; }
 </style>
 </head>
 <body>
+<div id="risco" hidden>
+  <div id="risco-barra">
+    <b id="risco-conta"></b>
+    <span class="nota">A faixa tracejada é a largura útil do rolo. O desenho é a linha de CORTE.</span>
+    <button id="risco-baixar" type="button">baixar SVG</button>
+    <button id="risco-fechar" type="button">fechar</button>
+  </div>
+  <div id="risco-papel"></div>
+</div>
+
 <div class="quadro">
   <header>
     <h1>cad.moldes</h1>
@@ -308,6 +333,19 @@
           <button id="exportar-hpgl" type="button">HPGL</button>
         </div>
         <p class="nota" id="estado-salvo" style="margin-top:6px"></p>
+      </div>
+
+      <div>
+        <h2>Encaixe</h2>
+        <div class="fileira">
+          <button id="encaixar" type="button">encaixar</button>
+          <button id="ver-risco" type="button">ver risco</button>
+          <button id="exportar-hpgl-encaixe" type="button">HPGL</button>
+        </div>
+        <p class="nota" id="estado-encaixe" style="margin-top:6px">
+          Usa a largura do rolo escolhida acima. O <strong>fio</strong> de cada peça manda na
+          rotação: tecido plano não deita.
+        </p>
       </div>
 
       <div>
