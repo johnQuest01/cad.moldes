@@ -315,3 +315,91 @@ margem — vira o campo `erro`, e não um `catch` que devolve lista vazia: o des
 problema aparece na conferência.
 
 **Próximo:** Bloco 3 — seleção (janela × cruzamento).
+
+
+---
+
+## O que a implementação mostrou — Bloco 3 fechado
+
+**13 testes novos** (58 no `@cad/editor`). Uma decisão de projeto apareceu na hora de escrever, e
+vale registrar.
+
+### A seleção guarda REFERÊNCIA, não coordenada
+
+Um `Alvo` carrega o ponto em que o cursor bateu — útil no instante do clique, mentira um segundo
+depois: basta arrastar o ponto e a coordenada guardada aponta para onde ele **estava**. A seleção
+guarda `Referencia`, que é só ids. Isso a faz sobreviver à edição, à graduação e à troca de tamanho:
+
+```
+--- referencia sobrevive a edicao ---
+antes ponto|pt-3 | o ponto foi para (175, 445) mm | depois ponto|pt-3
+no M ponto|pt-2  | trocou para G -> ponto|pt-2 | podou 0
+```
+
+E o outro lado da mesma moeda: **referência órfã**. Excluir um ponto selecionado deixaria a seleção
+apontando para o que não existe mais. `podar` tira essas e **diz quantas tirou** — sumir com item
+selecionado em silêncio é o tipo de coisa que o modelista percebe tarde:
+
+```
+--- podar ---
+selecionados 2 | apagou o ponto inserido | podar tirou 1 | sobrou ponto|pt-3
+```
+
+### Janela × cruzamento — a mesma caixa, dois resultados
+
+```
+--- sentido ---
+esquerda -> direita: janela | direita -> esquerda: cruzamento
+a caixa e a mesma nos dois: true
+
+--- marquee sobre a metade de cima da blusa, de (-20, 250) a (210, 480) mm ---
+janela     :  7 itens — 4 pontos, 3 arestas, 0 internas
+cruzamento : 10 itens — 4 pontos, 5 arestas, 1 internas
+so no cruzamento: interna|li-fio, aresta|ar-lateral, aresta|ar-meio
+```
+
+O extra do cruzamento é exatamente o que a caixa **só encosta**: o fio, que atravessa a borda de
+baixo, e as duas arestas que entram e saem da caixa. É a definição, medida.
+
+E o caso que prova que cruzamento não é só "algum ponto dentro":
+
+```
+caixinha de 6 x 6 mm em cima da lateral: janela -> 0 | cruzamento -> aresta|ar-lateral
+```
+
+Nenhum ponto da tesselação cai dentro de uma caixa de 6 mm; o que a pega é a **corda cruzando a
+borda da caixa**. Sem essa metade, o gesto de "pegar aquela aresta ali" não funcionaria — e é o
+gesto mais comum de todos.
+
+### O que o marquee recolhe
+
+```
+padrao: 0 pecas | pedindo peca: peca
+com a camada costura travada: interna|li-fio  (so o que nao e da costura)
+```
+
+A peça é **opt-in**: o padrão recolhe ponto, pique, linha interna e aresta, e a ferramenta pede
+`['peca']` quando é isso que ela move. Sem essa separação, um marquee sobre a peça inteira
+selecionaria a peça *e* todos os seus pontos, e "mover" ficaria ambíguo.
+
+### Clique
+
+```
+clicou no ombro  -> ponto|pt-3
+clicou no decote -> ponto|pt-4 (substituiu)
+clicou no vazio  -> nada
+shift-clique: 1 -> 2 -> 1 (o segundo tirou)
+ctrl-clique duas vezes no mesmo: 1 item | vazio com shift: 1
+Ctrl+A -> peca | com costura travada -> nada
+```
+
+Clique no vazio **com** modificador não limpa: quem está segurando Shift está construindo uma
+seleção, e errar o alvo não pode custar o trabalho todo.
+
+### Mais uma conta que foi para o motor
+
+`cruzarSegmentos` / `seCruzam` entraram em `@cad/motor` (`geometria/interseccao.ts`). O snap de
+interseção tinha uma cópia local dessa conta desde o Bloco 2; agora os dois usam a mesma, e a Fase 5
+vai usar a terceira vez no encaixe.
+
+**Próximo:** Bloco 4 — a máquina de ferramentas e as seis essenciais (Parte 4).

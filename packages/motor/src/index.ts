@@ -57,6 +57,7 @@ export type {
 
 export { areaComSinal, area, ehCCW, anelDoContorno, contemPonto } from './geometria/anel.js';
 export { normalizarWinding, areaDoContorno } from './geometria/winding.js';
+export { cruzarSegmentos, seCruzam } from './geometria/interseccao.js';
 
 export {
   pontoEmT,

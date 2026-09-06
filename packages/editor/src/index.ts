@@ -53,3 +53,13 @@ export {
   type Modificadores,
   type OpcoesDeSnap,
 } from './snap.js';
+
+export {
+  Selecao,
+  referenciaDe,
+  chaveDa,
+  caixaDoMarquee,
+  TIPOS_DO_MARQUEE,
+  type Referencia,
+  type ModoDeMarquee,
+} from './selecao.js';

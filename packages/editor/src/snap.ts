@@ -17,7 +17,7 @@
  *
  * `Alt` segurado desliga tudo — e a valvula de escape para quando o snap atrapalha.
  */
-import { MM, pontoNaTabela, type Id, type Vetor2 } from '@cad/motor';
+import { MM, cruzarSegmentos, pontoNaTabela, type Id, type Vetor2 } from '@cad/motor';
 
 import { peDaPerpendicular } from './alvo.js';
 import type { Camadas } from './camadas.js';
@@ -240,25 +240,9 @@ function intersecoesPerto(anel: readonly Vetor2[], alvo: Vetor2, raio: number): 
       // Cordas vizinhas se encontram no vertice comum: isso e `vertice`, nao
       // intersecao, e ja tem prioridade maior.
       if (Math.abs(indice1 - indice2) <= 1) continue;
-      const cruzamento = cruzar(a1, b1, a2, b2);
+      const cruzamento = cruzarSegmentos(a1, b1, a2, b2);
       if (cruzamento !== null) achados.push(cruzamento);
     }
   }
   return achados;
-}
-
-function cruzar(a1: Vetor2, b1: Vetor2, a2: Vetor2, b2: Vetor2): Vetor2 | null {
-  const d1x = b1.x - a1.x;
-  const d1y = b1.y - a1.y;
-  const d2x = b2.x - a2.x;
-  const d2y = b2.y - a2.y;
-  const denominador = d1x * d2y - d1y * d2x;
-  if (denominador === 0) return null;
-
-  const wx = a2.x - a1.x;
-  const wy = a2.y - a1.y;
-  const t = (wx * d2y - wy * d2x) / denominador;
-  const u = (wx * d1y - wy * d1x) / denominador;
-  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
-  return { x: Math.round(a1.x + d1x * t), y: Math.round(a1.y + d1y * t) };
 }

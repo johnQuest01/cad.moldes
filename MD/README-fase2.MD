@@ -55,4 +55,7 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
   derivados por versão e tamanho), `acharAlvo` (6 tipos por prioridade) e `acharSnap` (7 tipos, raio
   em pixels). **45 testes** no editor. Números no fim da Parte 3 — incluindo os **16,7 mm** entre o
   meio por arco e o `t = 0.5` na cava, que é o bônus da D1 aparecendo na interface.
-- **Blocos 3 a 8 — a fazer.** O próximo é o Bloco 3: seleção (janela × cruzamento).
+- **Bloco 3 — fechado.** `Selecao` guarda **referência, não coordenada** (sobrevive à edição e à
+  graduação), com `podar` para as órfãs; marquee janela × cruzamento pela convenção de CAD.
+  **58 testes** no editor. Números no fim da Parte 3.
+- **Blocos 4 a 8 — a fazer.** O próximo é o Bloco 4: a máquina de ferramentas e as seis essenciais.
