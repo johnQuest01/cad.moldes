@@ -47,4 +47,8 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
 - **Bloco 0 — fechado.** Os 11 eventos e as 2 operações estão no motor, com **21 testes novos** e o
   número colado no fim da Parte 2. O motor foi de 164 para **185 testes**; com persistência e API,
   **222**. `VERSAO_SCHEMA_ATUAL` continua 1: log antigo reconstrói igual.
-- **Blocos 1 a 8 — a fazer.** O próximo é o Bloco 1: `@cad/editor`, sessão e câmera (Parte 1).
+- **Bloco 1 — fechado.** `@cad/editor` existe: `Sessao` (log local, undo/redo por passo, selo,
+  cache por versão) e `Camera` (mundo Y-up em UM ↔ tela Y-down em px, zoom no cursor, enquadrar,
+  vista para culling). **26 testes** headless, com os números no fim da Parte 1 — incluindo o
+  guarda-costas da E3, que falha se alguém importar Pixi ou tocar no DOM aqui dentro.
+- **Blocos 2 a 8 — a fazer.** O próximo é o Bloco 2: hit-testing e snap (Parte 3).

@@ -124,6 +124,40 @@ conferir('exporta o repositorio', typeof persistencia.RepositorioDeEventos === '
 conferir('exporta os executores', typeof persistencia.executorPostgres === 'function' && typeof persistencia.executorSqlite === 'function');
 conferir('o DDL sai nos dois dialetos', persistencia.ddl('postgres').length === 3 && persistencia.ddl('sqlite').length === 3);
 
+console.log('@cad/editor');
+const editor = await import('@cad/editor');
+const camera = new editor.Camera(800, 600);
+camera.enquadrar(editor.caixaDe(motor.anelDoContorno(peca)), 32);
+const idaEVolta = camera.paraMundo(camera.paraTela({ x: 42 * motor.MM, y: 77 * motor.MM }));
+conferir(
+  'a camera do artefato construido converte ida e volta',
+  idaEVolta.x === 42 * motor.MM && idaEVolta.y === 77 * motor.MM,
+  `${motor.umParaMM(idaEVolta.x)}, ${motor.umParaMM(idaEVolta.y)} mm`,
+);
+
+const sessao = new editor.Sessao(log, {
+  tenantId: 't',
+  modeloId: 'm',
+  autor: 'verificar-dist',
+  gerarId: motor.criarGeradorMonotonico(),
+});
+sessao.aplicar({
+  tipo: 'ModificarPonto',
+  pecaId: 'p',
+  payload: { pontoId: 'pt-1', dx: 30 * motor.MM, dy: 0, modo: 'discreto', nVizinhos: 0 },
+});
+const larguraEditada = (m) => {
+  const anel = motor.anelDoContorno(m.pecas['p']);
+  return Math.max(...anel.map((v) => v.x)) - Math.min(...anel.map((v) => v.x));
+};
+const depoisDeEditar = larguraEditada(sessao.modelo);
+sessao.desfazer();
+conferir(
+  'a sessao do artefato construido edita e desfaz',
+  depoisDeEditar === 130 * motor.MM && larguraEditada(sessao.modelo) === 100 * motor.MM,
+  `${motor.umParaMM(depoisDeEditar)} mm -> desfazer -> ${motor.umParaMM(larguraEditada(sessao.modelo))} mm`,
+);
+
 console.log('@cad/api');
 const api = await import('@cad/api');
 conferir('exporta criarServidor', typeof api.criarServidor === 'function');
