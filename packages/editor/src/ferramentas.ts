@@ -32,6 +32,23 @@ export const LIMIAR_DE_ARRASTO_PX = 3;
 
 const distancia = (a: Vetor2, b: Vetor2): number => Math.hypot(a.x - b.x, a.y - b.y);
 
+/** Delta do gesto, com `Shift` preso ao eixo. Sem snap — e o caso da peca inteira. */
+function deltaCru(origem: Vetor2, em: Vetor2, mod: Modificadores): { dx: number; dy: number } {
+  const bruto = { dx: em.x - origem.x, dy: em.y - origem.y };
+  return mod.shift ? ortogonalizar(bruto.dx, bruto.dy) : bruto;
+}
+
+/** Delta do gesto passando pelo snap. E o caso do ponto, que agarra em vertice. */
+function deltaAte(
+  ctx: Contexto,
+  origem: Vetor2,
+  em: Vetor2,
+  mod: Modificadores,
+): { dx: number; dy: number } {
+  const destino = ctx.snap(em, mod)?.ponto ?? em;
+  return deltaCru(origem, destino, mod);
+}
+
 /** Prende o delta ao eixo mais forte. E o `Shift` de todo CAD. */
 function ortogonalizar(dx: number, dy: number): { dx: number; dy: number } {
   return Math.abs(dx) >= Math.abs(dy) ? { dx, dy: 0 } : { dx: 0, dy };
@@ -97,14 +114,38 @@ export interface OpcoesDeMover {
  * regra e aditiva, o ponto arrastado segue o cursor mesmo com P ou G na tela.
  */
 export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
-  let arrasto: { pecaId: Id; pontoId: Id; origem: Vetor2; dx: number; dy: number } | null = null;
+  let arrasto: {
+    pecaId: Id;
+    /** Os pontos que vao junto. Um so, ou o grupo inteiro que estava selecionado. */
+    pontos: Id[];
+    origem: Vetor2;
+    dx: number;
+    dy: number;
+  } | null = null;
+
+  /**
+   * Grupo anda RIGIDO; ponto sozinho respeita o modo escolhido.
+   *
+   * Aplicar o decaimento proporcional a cada ponto de um grupo composto os
+   * deslocamentos: quem esta no meio do grupo levaria o proprio arrasto mais o
+   * arraste dos vizinhos, e a selecao sairia deformada. Quem seleciona uma area e
+   * arrasta quer aquela area no lugar novo, inteira.
+   */
+  const modoDo = (quantos: number): 'discreto' | 'proporcional' =>
+    quantos > 1 ? 'discreto' : opcoes.modo;
+  const vizinhosDe = (quantos: number): number => (quantos > 1 ? 0 : opcoes.nVizinhos);
 
   const aplicar = (ctx: Contexto, dx: number, dy: number): void => {
     if (arrasto === null) return;
-    const previa = ctx.tentar(() =>
-      modificarPonto(ctx.base(arrasto!.pecaId), arrasto!.pontoId, dx, dy, opcoes.modo, opcoes.nVizinhos),
-    );
-    ctx.previsualizar(arrasto.pecaId, previa);
+    const { pecaId, pontos } = arrasto;
+    const previa = ctx.tentar(() => {
+      let peca = ctx.base(pecaId);
+      for (const pontoId of pontos) {
+        peca = modificarPonto(peca, pontoId, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length));
+      }
+      return peca;
+    });
+    ctx.previsualizar(pecaId, previa);
   };
 
   return {
@@ -117,15 +158,33 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
         ctx.selecao.clicar(alvo, mod);
         return;
       }
-      ctx.selecao.clicar(alvo, mod);
-      arrasto = { pecaId: alvo.pecaId, pontoId: alvo.pontoId, origem: alvo.ponto, dx: 0, dy: 0 };
+
+      // Se o ponto clicado ja fazia parte de uma selecao, o gesto move o GRUPO —
+      // e o "mover a area" que todo CAD de molde tem. Clicar fora dela recomeca.
+      const jaSelecionado = ctx.selecao.tem({
+        tipo: 'ponto',
+        pecaId: alvo.pecaId,
+        pontoId: alvo.pontoId,
+      });
+      if (!jaSelecionado) ctx.selecao.clicar(alvo, mod);
+
+      const grupo = ctx.selecao
+        .doTipo('ponto')
+        .filter((ref) => ref.pecaId === alvo.pecaId)
+        .map((ref) => ref.pontoId);
+
+      arrasto = {
+        pecaId: alvo.pecaId,
+        pontos: grupo.length > 1 ? grupo : [alvo.pontoId],
+        origem: alvo.ponto,
+        dx: 0,
+        dy: 0,
+      };
     },
 
     aoArrastar(ctx, em, mod) {
       if (arrasto === null) return;
-      const destino = ctx.snap(em, mod)?.ponto ?? em;
-      const bruto = { dx: destino.x - arrasto.origem.x, dy: destino.y - arrasto.origem.y };
-      const { dx, dy } = mod.shift ? ortogonalizar(bruto.dx, bruto.dy) : bruto;
+      const { dx, dy } = deltaAte(ctx, arrasto.origem, em, mod);
       arrasto.dx = dx;
       arrasto.dy = dy;
       aplicar(ctx, dx, dy);
@@ -137,40 +196,42 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
       });
     },
 
-    aoSoltar(ctx) {
+    aoSoltar(ctx, em, mod) {
       if (arrasto === null) return;
-      const { pecaId, pontoId, dx, dy } = arrasto;
+      // O delta e recalculado NA SOLTURA, nao herdado do ultimo `pointermove`.
+      //
+      // Era um defeito de verdade: um `pointerup` que cai alguns pixels adiante do
+      // ultimo movimento — o que acontece o tempo todo com o mouse — commitava o
+      // deslocamento ANTIGO, e a peca "voltava" para onde tinha passado, em vez de
+      // ficar onde foi largada.
+      const final = deltaAte(ctx, arrasto.origem, em, mod);
+      const { pecaId, pontos } = arrasto;
+      const { dx, dy } = final;
       arrasto = null;
       // A cota do arrasto e do GESTO: acabou o gesto, some. A da regua e outra
       // coisa — ela e a saida da ferramenta, e fica ate a proxima medida.
       ctx.mostrarCota(null);
       if (dx === 0 && dy === 0) return;
-      ctx.emitir({
-        tipo: 'ModificarPonto',
-        pecaId,
-        payload: { pontoId, dx, dy, modo: opcoes.modo, nVizinhos: opcoes.nVizinhos },
-      });
+      // Um `emitir` so: mover cinco pontos e UM passo de undo, nao cinco.
+      ctx.emitir(...gestosDeMover(pecaId, pontos, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length)));
     },
 
     aoNumero(ctx, campos) {
       // E10: valor digitado ganha do ultimo pixel. Vem em MILIMETRO.
-      const alvo = arrasto ?? primeiroPontoSelecionado(ctx);
-      if (alvo === null) return;
+      const doArrasto = arrasto;
+      const selecionados = ctx.selecao.doTipo('ponto');
+      const pecaId = doArrasto?.pecaId ?? selecionados[0]?.pecaId;
+      if (pecaId === undefined) return;
+      const pontos =
+        doArrasto?.pontos ??
+        selecionados.filter((ref) => ref.pecaId === pecaId).map((ref) => ref.pontoId);
+      if (pontos.length === 0) return;
+
       const dx = mmParaUM(campos['dx'] ?? 0);
       const dy = mmParaUM(campos['dy'] ?? 0);
       arrasto = null;
       if (dx === 0 && dy === 0) return;
-      ctx.emitir({
-        tipo: 'ModificarPonto',
-        pecaId: alvo.pecaId,
-        payload: {
-          pontoId: alvo.pontoId,
-          dx,
-          dy,
-          modo: opcoes.modo,
-          nVizinhos: opcoes.nVizinhos,
-        },
-      });
+      ctx.emitir(...gestosDeMover(pecaId, pontos, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length)));
     },
 
     aoSair(ctx) {
@@ -180,9 +241,19 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
   };
 }
 
-function primeiroPontoSelecionado(ctx: Contexto): { pecaId: Id; pontoId: Id } | null {
-  const [primeiro] = ctx.selecao.doTipo('ponto');
-  return primeiro === undefined ? null : { pecaId: primeiro.pecaId, pontoId: primeiro.pontoId };
+function gestosDeMover(
+  pecaId: Id,
+  pontos: readonly Id[],
+  dx: number,
+  dy: number,
+  modo: 'discreto' | 'proporcional',
+  nVizinhos: number,
+): { tipo: string; pecaId: Id; payload: unknown }[] {
+  return pontos.map((pontoId) => ({
+    tipo: 'ModificarPonto',
+    pecaId,
+    payload: { pontoId, dx, dy, modo, nVizinhos },
+  }));
 }
 
 // ===========================================================================
@@ -219,8 +290,7 @@ export function ferramentaMoverPeca(): Ferramenta {
 
     aoArrastar(ctx, em, mod) {
       if (arrasto === null) return;
-      const bruto = { dx: em.x - arrasto.origem.x, dy: em.y - arrasto.origem.y };
-      const { dx, dy } = mod.shift ? ortogonalizar(bruto.dx, bruto.dy) : bruto;
+      const { dx, dy } = deltaCru(arrasto.origem, em, mod);
       arrasto.dx = dx;
       arrasto.dy = dy;
       // A previa mostra so a primeira peca do lote: desenhar todas custaria uma
@@ -230,9 +300,11 @@ export function ferramentaMoverPeca(): Ferramenta {
       ctx.previsualizar(primeira, previa);
     },
 
-    aoSoltar(ctx) {
+    aoSoltar(ctx, em, mod) {
       if (arrasto === null) return;
-      const { pecas, dx, dy } = arrasto;
+      // Mesma regra do mover ponto: vale onde o botao foi SOLTO.
+      const { dx, dy } = deltaCru(arrasto.origem, em, mod);
+      const { pecas } = arrasto;
       arrasto = null;
       if (dx === 0 && dy === 0) return;
       ctx.emitir(

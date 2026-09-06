@@ -116,11 +116,18 @@ export class Tela {
     this.render();
   }
 
-  /** Acerta o tamanho da camera ao do canvas. Chame no resize. */
+  /**
+   * Acerta o tamanho da camera ao do canvas. Chame no resize.
+   *
+   * Usa `app.screen`, que e o retangulo em unidades LOGICAS (CSS). Estava usando
+   * `renderer.width` dividido pela resolucao, e era um defeito de verdade: numa
+   * tela com escala de 125% do Windows a camera ficava 20% menor que o canvas, e
+   * o cursor mirava num lugar diferente do que a pessoa via — errando mais quanto
+   * mais longe do centro. Cravar pique no contorno simplesmente nao pegava.
+   */
   ajustar(): void {
-    const { width, height } = this.app.renderer;
-    const escala = this.app.renderer.resolution;
-    this.#editor.camera.redimensionar(width / escala, height / escala);
+    const { width, height } = this.app.screen;
+    this.#editor.camera.redimensionar(width, height);
     this.#assinatura = '';
   }
 
@@ -150,15 +157,21 @@ export class Tela {
       camera.altura / 2 + camera.centro.y * escala,
     );
 
+    // MONTA a lista antes de limpar a tela.
+    //
+    // Estava ao contrario, e era um defeito de verdade: limpava tudo e so entao
+    // montava. Uma excecao no meio da montagem — um pique que nao projeta, uma
+    // peca sem margem — deixava a tela EM BRANCO, e o modelista via a peca sumir.
+    // Montando antes, o pior caso e um quadro defasado, nunca um quadro vazio.
+    const comandos = montarCena(this.#editor, opcoes);
+
     for (const container of this.#camadas.values()) {
       for (const filho of container.removeChildren()) filho.destroy();
     }
     this.#textos.length = 0;
 
     const umPorPixel = camera.umPorPixel;
-    for (const comando of montarCena(this.#editor, opcoes)) {
-      this.#desenhar(comando, umPorPixel);
-    }
+    for (const comando of comandos) this.#desenhar(comando, umPorPixel);
     return true;
   }
 

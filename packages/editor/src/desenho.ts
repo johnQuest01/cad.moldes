@@ -17,7 +17,17 @@
  * com `larguraNoMundo`. Assim a linha de costura tem 1,6 px em qualquer zoom, e o
  * teste da regressao e uma comparacao de numero, nao um olhar na tela.
  */
-import { MM, anelDoContorno, type Id, type Peca, type Vetor2 } from '@cad/motor';
+import {
+  ErroMotor,
+  MM,
+  anelDoContorno,
+  offsetMargem,
+  projetarPique,
+  type Id,
+  type Peca,
+  type PiqueProjetado,
+  type Vetor2,
+} from '@cad/motor';
 
 import type { Camada } from './camadas.js';
 import { PASSO_DA_GRADE_UM, type Snap } from './snap.js';
@@ -118,12 +128,19 @@ export function montarCena(editor: Editor, opcoes: OpcoesDaCena = {}): Comando[]
 
   for (const pecaId of cena.pecas) {
     const derivados = cena.derivados(pecaId);
-    // Culling: peca fora da vista nem entra na lista (Parte 1).
-    if (!seTocam(vista, derivados.caixa)) continue;
-
-    // Durante um arrasto, a peca desenhada e a PREVIA — nao o que esta no log.
-    const peca = previa !== null && previa.pecaId === pecaId ? previa.peca : derivados.peca;
     const emPrevia = previa !== null && previa.pecaId === pecaId;
+
+    // Durante um arrasto, a peca desenhada e a PREVIA — nao o que esta no log. E
+    // ela e derivada por inteiro: contorno, corte e piques.
+    //
+    // Antes daqui, a previa desenhava so o contorno, e a linha de corte e os piques
+    // sumiam no meio do gesto. Pior: o culling usava a caixa da peca do LOG, entao
+    // arrastar a peca para fora da vista antiga fazia ela desaparecer da tela —
+    // exatamente onde o modelista estava olhando.
+    const peca = emPrevia ? previa.peca : derivados.peca;
+    const doQuadro = emPrevia ? derivarParaODesenho(peca, derivados) : derivados;
+
+    if (!seTocam(vista, doQuadro.caixa)) continue;
 
     if (opcoes.encaixe === true && camadas.visivel('fantasma') && !emPrevia) {
       for (const tamanho of cena.modelo.tamanhos) {
@@ -140,11 +157,11 @@ export function montarCena(editor: Editor, opcoes: OpcoesDaCena = {}): Comando[]
       }
     }
 
-    if (camadas.visivel('corte') && derivados.corte.length > 0 && !emPrevia) {
+    if (camadas.visivel('corte') && doQuadro.corte.length > 0) {
       comandos.push({
         forma: 'linha',
         camada: 'corte',
-        pontos: derivados.corte,
+        pontos: doQuadro.corte,
         fechada: true,
         estilo: { cor: 'corte', espessuraPx: ESPESSURA_PX.corte },
       });
@@ -154,15 +171,13 @@ export function montarCena(editor: Editor, opcoes: OpcoesDaCena = {}): Comando[]
       comandos.push({
         forma: 'linha',
         camada: 'costura',
-        pontos: emPrevia ? contornoDaPrevia(peca, derivados.contorno) : derivados.contorno,
+        pontos: doQuadro.contorno,
         fechada: true,
         estilo: { cor: 'costura', espessuraPx: ESPESSURA_PX.costura },
       });
       for (const ponto of Object.values(peca.pontos)) {
         if (ponto.tipo !== 'contorno') continue;
-        const escolhido = selecionados.has(
-          chaveDa({ tipo: 'ponto', pecaId, pontoId: ponto.id }),
-        );
+        const escolhido = selecionados.has(chaveDa({ tipo: 'ponto', pecaId, pontoId: ponto.id }));
         comandos.push({
           forma: 'marca',
           camada: 'costura',
@@ -202,9 +217,9 @@ export function montarCena(editor: Editor, opcoes: OpcoesDaCena = {}): Comando[]
       }
     }
 
-    if (camadas.visivel('pique') && !emPrevia) {
-      for (const [piqueId, projetado] of derivados.piques) {
-        const pique = derivados.peca.piques[piqueId]!;
+    if (camadas.visivel('pique')) {
+      for (const [piqueId, projetado] of doQuadro.piques) {
+        const pique = peca.piques[piqueId]!;
         const escolhido = selecionados.has(chaveDa({ tipo: 'pique', pecaId, piqueId }));
         comandos.push(...marcaDoPique(pique.tipo, pique.alturaUM, pique.larguraUM, projetado, escolhido));
       }
@@ -245,17 +260,61 @@ function coordenada(ponto: { x: number; y: number } | undefined): Vetor2 {
   return ponto === undefined ? { x: 0, y: 0 } : { x: ponto.x, y: ponto.y };
 }
 
+/** O que o quadro precisa de uma peca: contorno, corte, piques e caixa. */
+interface ParaODesenho {
+  readonly contorno: readonly Vetor2[];
+  readonly corte: readonly Vetor2[];
+  readonly piques: readonly (readonly [Id, PiqueProjetado])[];
+  readonly caixa: Caixa;
+}
+
 /**
- * Contorno da peca em previa. Tessela de verdade — e por isso que arrastar mostra
- * a curva certa, e nao a antiga. Se o motor recusar no meio do arrasto, cai no
- * ultimo contorno bom: melhor desenhar defasado por um quadro que piscar em branco.
+ * Deriva a peca em previa do jeito que o desenho precisa, sem passar pelo cache —
+ * a previa nao tem versao, e cachear ela seria guardar lixo a cada quadro.
+ *
+ * Tudo aqui e "melhor esforco": se o motor recusar no meio do gesto, cai no ultimo
+ * bom em vez de piscar em branco. O editor nao pode fechar (Parte 0), e um gesto em
+ * curso passa por estados invalidos o tempo todo — e normal, nao e erro a relatar.
  */
-function contornoDaPrevia(peca: Peca, ultimoBom: readonly Vetor2[]): readonly Vetor2[] {
+function derivarParaODesenho(peca: Peca, ultimoBom: ParaODesenho): ParaODesenho {
+  let contorno = ultimoBom.contorno;
   try {
-    return anelDoContorno(peca);
-  } catch {
-    return ultimoBom;
+    contorno = anelDoContorno(peca);
+  } catch (falha) {
+    if (!(falha instanceof ErroMotor)) throw falha;
   }
+
+  let corte: readonly Vetor2[] = [];
+  try {
+    corte = offsetMargem(peca).pontos;
+  } catch (falha) {
+    if (!(falha instanceof ErroMotor)) throw falha;
+  }
+
+  const piques: (readonly [Id, PiqueProjetado])[] = [];
+  if (corte.length > 0) {
+    for (const pique of Object.values(peca.piques)) {
+      if (peca.arestas[pique.arestaId] === undefined) continue;
+      try {
+        piques.push([pique.id, projetarPique(peca, pique.id)] as const);
+      } catch (falha) {
+        if (!(falha instanceof ErroMotor)) throw falha;
+      }
+    }
+  }
+
+  const todos = corte.length > 0 ? [...contorno, ...corte] : contorno;
+  const caixa: Caixa =
+    todos.length === 0
+      ? ultimoBom.caixa
+      : {
+          minX: Math.min(...todos.map((p) => p.x)),
+          maxX: Math.max(...todos.map((p) => p.x)),
+          minY: Math.min(...todos.map((p) => p.y)),
+          maxY: Math.max(...todos.map((p) => p.y)),
+        };
+
+  return { contorno, corte, piques, caixa };
 }
 
 /** Papel quadriculado de 5 cm, so na parte visivel. */

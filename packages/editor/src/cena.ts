@@ -21,7 +21,7 @@ import {
   anelDoContorno,
   aplicarGraduacao,
   offsetMargem,
-  projetarPiques,
+  projetarPique,
   tabelaArcoDaAresta,
   validarInconsistencias,
   type Id,
@@ -176,13 +176,32 @@ export class Cena {
       erro = falha;
     }
 
-    // Pique ancorado em aresta que sumiu fica para o validador acusar; projetar
-    // um deles estouraria e derrubaria o desenho inteiro.
-    const vivos = Object.values(peca.piques)
-      .filter((p) => peca.arestas[p.arestaId] !== undefined)
-      .map((p) => p.id);
-    const projetados = erro === null && vivos.length > 0 ? projetarPiques(peca, vivos) : [];
-    const piques = vivos.map((id, i) => [id, projetados[i]!] as const).filter(([, p]) => p !== undefined);
+    // A projecao de UM pique nao pode derrubar a peca inteira.
+    //
+    // Estava assim, e era um defeito de verdade: `projetarPiques` estoura em pique
+    // orfao ou com normal degenerada, a excecao subia por `derivados` e o desenho
+    // sumia da tela — a peca inteira, por causa de uma marca de 1,59 mm. Agora cada
+    // pique e projetado por sua conta: o que falhar vira PROBLEMA e os outros
+    // continuam desenhados.
+    const piques: (readonly [Id, PiqueProjetado])[] = [];
+    const recusados: Problema[] = [];
+    if (erro === null) {
+      for (const pique of Object.values(peca.piques)) {
+        if (peca.arestas[pique.arestaId] === undefined) continue;
+        try {
+          piques.push([pique.id, projetarPique(peca, pique.id)] as const);
+        } catch (falha) {
+          if (!(falha instanceof ErroMotor)) throw falha;
+          recusados.push({
+            gravidade: 'erro',
+            codigo: falha.codigo,
+            mensagem: `Pique "${pique.id}" nao pode ser projetado: ${falha.message}`,
+            pecaId,
+            arestaId: pique.arestaId,
+          });
+        }
+      }
+    }
 
     return {
       peca,
@@ -190,7 +209,10 @@ export class Cena {
       corte,
       tabelas,
       piques,
-      problemas: validarInconsistencias({ ...modelo, pecas: { [pecaId]: peca } }, pecaId),
+      problemas: [
+        ...validarInconsistencias({ ...modelo, pecas: { [pecaId]: peca } }, pecaId),
+        ...recusados,
+      ],
       caixa: caixaDe(corte.length > 0 ? [...contorno, ...corte] : contorno),
       erro,
     };

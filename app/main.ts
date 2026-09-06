@@ -80,8 +80,30 @@ function redesenhar(): void {
 ligarEntrada(palco, editor, redesenhar);
 globalThis.addEventListener('resize', () => {
   tela.ajustar();
+  conferirCamera();
   redesenhar();
 });
+
+/**
+ * A camera tem que ter EXATAMENTE o tamanho do canvas.
+ *
+ * Ja esteve 20% menor numa tela com escala de 125% do Windows, e o efeito era
+ * traicoeiro: o cursor mirava num lugar diferente do que a pessoa via, errando
+ * mais quanto mais longe do centro. Nao da para testar isso headless — nao ha
+ * canvas —, entao fica esta conferencia em desenvolvimento, que grita no console
+ * em vez de deixar o defeito voltar em silencio.
+ */
+function conferirCamera(): void {
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV !== true) return;
+  const erroX = Math.abs(editor.camera.largura - palco.clientWidth);
+  const erroY = Math.abs(editor.camera.altura - palco.clientHeight);
+  if (erroX > 1 || erroY > 1) {
+    console.error(
+      `A camera (${editor.camera.largura} x ${editor.camera.altura}) nao bate com o canvas ` +
+        `(${palco.clientWidth} x ${palco.clientHeight}). O cursor vai mirar errado.`,
+    );
+  }
+}
 globalThis
   .matchMedia('(prefers-color-scheme: dark)')
   .addEventListener('change', () => tela.trocarTema(tema()));
@@ -298,4 +320,5 @@ if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV === true) {
 }
 
 marcarFerramenta();
+conferirCamera();
 redesenhar();

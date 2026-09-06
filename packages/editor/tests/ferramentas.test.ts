@@ -448,3 +448,132 @@ describe('Medir — a regua que nao muda nada', () => {
     expect(editor.sessao.pendentes).toHaveLength(0);
   });
 });
+
+// ===========================================================================
+// Mover a AREA: o gesto que o uso real pediu
+// ===========================================================================
+
+describe('Mover um grupo de pontos — o "mover a area" do ateliê', () => {
+  it('com varios pontos selecionados, o arrasto move TODOS, num passo so', () => {
+    const editor = novoEditor();
+    // Marquee sobre a metade de cima: pega o ombro, o decote e a cava.
+    editor.apontar({ x: -20 * MM, y: 250 * MM });
+    editor.arrastar({ x: 210 * MM, y: 480 * MM });
+    editor.soltar({ x: 210 * MM, y: 480 * MM });
+    const selecionados = editor.selecao.doTipo('ponto');
+
+    const antes = selecionados.map((ref) => ({
+      ...editor.cena.derivados(PECA).peca.pontos[ref.pontoId]!,
+    }));
+
+    editor.usar('moverPonto');
+    const pegar = antes[0]!;
+    editor.apontar({ x: pegar.x, y: pegar.y });
+    editor.arrastar({ x: pegar.x + 15 * MM, y: pegar.y + 5 * MM }, ALT);
+    editor.soltar({ x: pegar.x + 15 * MM, y: pegar.y + 5 * MM }, ALT);
+
+    const depois = selecionados.map((ref) => editor.cena.derivados(PECA).peca.pontos[ref.pontoId]!);
+    const deltas = depois.map((p, i) => ({
+      dx: umParaMM(p.x - antes[i]!.x),
+      dy: umParaMM(p.y - antes[i]!.y),
+    }));
+
+    console.log('--- mover a area ---');
+    console.log(`${selecionados.length} pontos selecionados pelo marquee`);
+    console.log(`deltas: ${deltas.map((d) => `(${d.dx}, ${d.dy})`).join(' ')}`);
+    console.log(
+      `${editor.sessao.pendentes.length} eventos em ${editor.sessao.passos} passo | ` +
+        `modo no payload: ${String(carga(editor)['modo'])}`,
+    );
+
+    expect(selecionados.length).toBeGreaterThan(1);
+    // Grupo anda RIGIDO: todo mundo o mesmo delta, sem decaimento composto.
+    for (const d of deltas) {
+      expect(d.dx).toBeCloseTo(15, 6);
+      expect(d.dy).toBeCloseTo(5, 6);
+    }
+    expect(editor.sessao.pendentes).toHaveLength(selecionados.length);
+    expect(editor.sessao.passos).toBe(1);
+    expect(carga(editor)['modo']).toBe('discreto');
+  });
+
+  it('um desfazer devolve o grupo inteiro ao lugar', () => {
+    const editor = novoEditor();
+    editor.apontar({ x: -20 * MM, y: 250 * MM });
+    editor.arrastar({ x: 210 * MM, y: 480 * MM });
+    editor.soltar({ x: 210 * MM, y: 480 * MM });
+
+    const ombro = editor.cena.derivados(PECA).peca.pontos['pt-3']!;
+    const antes = { x: ombro.x, y: ombro.y };
+    editor.usar('moverPonto');
+    editor.apontar(antes);
+    editor.arrastar({ x: antes.x + 15 * MM, y: antes.y }, ALT);
+    editor.soltar({ x: antes.x + 15 * MM, y: antes.y }, ALT);
+    const movido = editor.cena.derivados(PECA).peca.pontos['pt-3']!.x;
+
+    editor.sessao.desfazer();
+    const voltou = editor.cena.derivados(PECA).peca.pontos['pt-3']!.x;
+    console.log(
+      `ombro: ${umParaMM(antes.x)} -> ${umParaMM(movido)} -> desfazer -> ${umParaMM(voltou)} mm`,
+    );
+    expect(voltou).toBe(antes.x);
+  });
+
+  it('clicar num ponto FORA da selecao recomeca: move so ele', () => {
+    const editor = novoEditor();
+    editor.apontar({ x: -20 * MM, y: 250 * MM });
+    editor.arrastar({ x: 210 * MM, y: 480 * MM });
+    editor.soltar({ x: 210 * MM, y: 480 * MM });
+    const antes = editor.selecao.doTipo('ponto').length;
+
+    // pt-0 fica na bainha, fora do marquee de cima.
+    const bainha = editor.cena.derivados(PECA).peca.pontos['pt-0']!;
+    editor.usar('moverPonto');
+    editor.apontar(bainha);
+    editor.arrastar({ x: bainha.x + 10 * MM, y: bainha.y }, ALT);
+    editor.soltar({ x: bainha.x + 10 * MM, y: bainha.y }, ALT);
+
+    console.log(
+      `${antes} selecionados; clicou num ponto de fora -> ` +
+        `${editor.sessao.pendentes.length} evento, modo ${String(carga(editor)['modo'])}`,
+    );
+    expect(editor.sessao.pendentes).toHaveLength(1);
+    expect(carga(editor)['modo']).toBe('proporcional');
+  });
+});
+
+describe('O gesto vale onde o botao foi SOLTO', () => {
+  it('mover ponto: um pointerup adiante do ultimo movimento commita a posicao final', () => {
+    const editor = novoEditor();
+    editor.usar('moverPonto');
+    editor.apontar(OMBRO);
+    // O ultimo `pointermove` para em 10 mm...
+    editor.arrastar({ x: OMBRO.x + 10 * MM, y: OMBRO.y }, ALT);
+    // ...e o botao e solto em 25 mm. E o que acontece o tempo todo com o mouse.
+    editor.soltar({ x: OMBRO.x + 25 * MM, y: OMBRO.y }, ALT);
+
+    console.log('--- soltura adiante do ultimo movimento ---');
+    console.log(
+      `ultimo pointermove em 10 mm, pointerup em 25 mm -> evento com dx = ` +
+        `${umParaMM(Number(carga(editor)['dx']))} mm`,
+    );
+    expect(carga(editor)['dx']).toBe(25 * MM);
+  });
+
+  it('mover peca: idem — a peca fica onde foi largada', () => {
+    const editor = novoEditor();
+    editor.usar('moverPeca');
+    const dentro: Vetor2 = { x: 60 * MM, y: 200 * MM };
+    editor.apontar(dentro);
+    editor.arrastar({ x: dentro.x + 10 * MM, y: dentro.y });
+    editor.soltar({ x: dentro.x + 70 * MM, y: dentro.y });
+
+    const anel = anelDoContorno(editor.cena.derivados(PECA).peca);
+    console.log(
+      `movimento parou em 10 mm, soltou em 70 mm -> dx do evento ` +
+        `${umParaMM(Number(carga(editor)['dx']))} mm | a peca comeca em ` +
+        `${umParaMM(Math.min(...anel.map((p) => p.x)))} mm`,
+    );
+    expect(carga(editor)['dx']).toBe(70 * MM);
+  });
+});

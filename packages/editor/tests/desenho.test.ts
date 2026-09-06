@@ -214,3 +214,119 @@ describe('A previa entra na cena no lugar da peca do log', () => {
     expect(editor.sessao.pendentes).toHaveLength(0);
   });
 });
+
+// ===========================================================================
+// Regressoes: os tres jeitos de a peca "sumir" que o uso real encontrou
+// ===========================================================================
+
+describe('A peca nao pode sumir da tela', () => {
+  it('durante o arrasto, a linha de CORTE e os piques continuam desenhados', () => {
+    const editor = novoEditor();
+    editor.usar('pique');
+    const naLateral: Vetor2 = { x: 186 * MM, y: 150 * MM };
+    editor.apontar(naLateral);
+    editor.soltar(naLateral);
+
+    const parado = montarCena(editor);
+    editor.usar('moverPonto');
+    const ombro = editor.cena.derivados(PECA).peca.pontos['pt-3']!;
+    editor.apontar(ombro);
+    editor.arrastar({ x: ombro.x + 20 * MM, y: ombro.y }, { shift: false, ctrl: false, alt: true });
+    const arrastando = montarCena(editor);
+
+    const conta = (cs: readonly Comando[], camada: string) =>
+      cs.filter((c) => c.camada === camada).length;
+
+    console.log('--- durante o arrasto ---');
+    console.log(
+      `parado:     corte ${conta(parado, 'corte')} | pique ${conta(parado, 'pique')} | ` +
+        `costura ${conta(parado, 'costura')}`,
+    );
+    console.log(
+      `arrastando: corte ${conta(arrastando, 'corte')} | pique ${conta(arrastando, 'pique')} | ` +
+        `costura ${conta(arrastando, 'costura')}`,
+    );
+    expect(conta(arrastando, 'corte')).toBeGreaterThan(0);
+    expect(conta(arrastando, 'pique')).toBeGreaterThan(0);
+  });
+
+  it('a peca arrastada acompanha o cursor, e a caixa de culling vai junto', () => {
+    const editor = novoEditor();
+    editor.usar('moverPeca');
+    const dentro: Vetor2 = { x: 60 * MM, y: 200 * MM };
+    const xDe = (cs: readonly Comando[]): number => {
+      const linha = cs.find((c) => c.camada === 'costura' && c.forma === 'linha');
+      if (linha?.forma !== 'linha') return NaN;
+      return Math.min(...linha.pontos.map((p) => p.x));
+    };
+
+    const parado = xDe(montarCena(editor));
+    editor.apontar(dentro);
+    editor.arrastar({ x: dentro.x + 60 * MM, y: dentro.y });
+    const arrastando = xDe(montarCena(editor));
+
+    console.log('--- a peca acompanha o arrasto ---');
+    console.log(
+      `borda esquerda: ${umParaMM(parado)} mm -> ${umParaMM(arrastando)} mm ` +
+        `(arrastou 60 mm)`,
+    );
+    expect(umParaMM(arrastando - parado)).toBeCloseTo(60, 6);
+  });
+
+  it('arrastada para longe da vista, ela e culada — e isso e o certo', () => {
+    const editor = novoEditor();
+    editor.usar('moverPeca');
+    const dentro: Vetor2 = { x: 60 * MM, y: 200 * MM };
+    const largura = editor.camera.vista.maxX - editor.camera.vista.minX;
+    editor.apontar(dentro);
+    editor.arrastar({ x: dentro.x + largura * 2, y: dentro.y });
+
+    const costura = montarCena(editor).filter((c) => c.camada === 'costura' && c.forma === 'linha');
+    console.log(
+      `arrastou ${umParaMM(largura * 2).toFixed(0)} mm — duas telas — ` +
+        `-> ${costura.length} contorno(s): saiu de vista mesmo`,
+    );
+    expect(costura).toHaveLength(0);
+  });
+
+  it('vinte piques nao derrubam a peca — foi assim que o defeito apareceu no uso', () => {
+    const editor = novoEditor();
+    editor.usar('pique');
+    const peca = () => editor.cena.derivados(PECA).peca;
+
+    // Crava piques em todas as arestas com margem, varios por aresta.
+    const arestas = Object.keys(peca().arestas).filter((id) => (peca().margens[id] ?? 0) > 0);
+    let n = 0;
+    for (const arestaId of arestas) {
+      for (const s of [0.2, 0.4, 0.6, 0.8]) {
+        editor.sessao.aplicar({
+          tipo: 'AdicionarPique',
+          pecaId: PECA,
+          payload: {
+            piqueId: `pq-${n++}`,
+            arestaId,
+            s,
+            tipo: 'V',
+            alturaUM: 6350,
+            larguraUM: 1590,
+            anguloGraus: 0,
+          },
+        });
+      }
+    }
+
+    const cena = montarCena(editor);
+    const costura = cena.filter((c) => c.camada === 'costura' && c.forma === 'linha');
+    const projetados = editor.cena.derivados(PECA).piques.length;
+
+    console.log('--- muitos piques ---');
+    console.log(
+      `${n} piques em ${arestas.length} arestas -> ${projetados} projetados, ` +
+        `${costura.length} contorno(s) desenhado(s), ` +
+        `${cena.filter((c) => c.camada === 'pique').length} comandos de pique`,
+    );
+    expect(n).toBe(20);
+    expect(projetados).toBe(20);
+    expect(costura.length).toBeGreaterThan(0);
+  });
+});
