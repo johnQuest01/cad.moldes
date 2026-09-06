@@ -170,8 +170,16 @@ function atualizarPaineis(): void {
     alerta.className = 'alerta erro';
     alerta.textContent = `[${editor.recusa.codigo}] ${editor.recusa.message}`;
   } else if (problemas.length > 0) {
-    alerta.className = 'alerta aviso';
-    alerta.innerHTML = problemas.map((p) => `[${p.gravidade}] ${p.codigo}`).join('<br>');
+    // Erro e ERRO: vermelho, com a mensagem inteira e na frente da lista. Estava
+    // tudo saindo amarelo, e um contorno que dobra sobre si mesmo — a peca nao vai
+    // para o corte assim — aparecia com a mesma cara de um aviso de rotina.
+    const erros = problemas.filter((p) => p.gravidade === 'erro');
+    const avisos = problemas.filter((p) => p.gravidade !== 'erro');
+    alerta.className = erros.length > 0 ? 'alerta erro' : 'alerta aviso';
+    alerta.innerHTML = [
+      ...erros.map((p) => `<b>[erro] ${p.codigo}</b><br>${p.mensagem}`),
+      ...avisos.map((p) => `[aviso] ${p.codigo}`),
+    ].join('<br>');
   } else {
     alerta.className = 'alerta ok';
     alerta.textContent = 'Validador: nenhuma inconsistência.';

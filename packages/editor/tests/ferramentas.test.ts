@@ -653,3 +653,86 @@ describe('Mover a LINHA, e nao so o vertice', () => {
     expect(tipos(editor)).toEqual(['AdicionarPique', 'MoverPique']);
   });
 });
+
+describe('A ponta que dobra sobre si mesma tem que ser ACUSADA', () => {
+  it('arrastar um ponto para tras do vizinho cria auto-intersecao, e o validador pega', () => {
+    const editor = new Editor(
+      sessaoDaBlusa(),
+      [ferramentaMoverPonto({ modo: 'discreto', nVizinhos: 0 })],
+      1280,
+      800,
+    );
+    editor.camera.definirZoom(1);
+    const limpo = editor.cena.problemas.filter((p) => p.gravidade === 'erro').length;
+
+    // pt-4 e o canto do decote (60, 450). Jogando ele para a direita, passando
+    // por cima do ombro, o contorno cruza a si mesmo.
+    const decote = editor.cena.derivados(PECA).peca.pontos['pt-4']!;
+    editor.apontar(decote);
+    editor.arrastar({ x: 250 * MM, y: 430 * MM }, ALT);
+    editor.soltar({ x: 250 * MM, y: 430 * MM }, ALT);
+
+    const p = editor.cena.derivados(PECA).peca.pontos;
+    const erros = editor.cena.problemas.filter((q) => q.gravidade === 'erro');
+    console.log('--- linha sobre linha ---');
+    console.log(
+      'vertices: ' +
+        ['pt-2', 'pt-3', 'pt-4', 'pt-5']
+          .map((id) => `${id}(${umParaMM(p[id]!.x).toFixed(0)},${umParaMM(p[id]!.y).toFixed(0)})`)
+          .join(' '),
+    );
+    console.log(`antes: ${limpo} erro(s) | depois de dobrar o decote: ${erros.length}`);
+    console.log(`  ${erros.map((q) => q.codigo).join(', ') || '(nenhum)'}`);
+
+    expect(limpo).toBe(0);
+    expect(erros.map((q) => q.codigo)).toContain('CONTORNO_AUTO_INTERSECTADO');
+  });
+});
+
+describe('Nao criar farpa: ponto a fracao de milimetro do vizinho', () => {
+  it('arrastar em cima da linha COLADO num vertice pega o vertice, e nao insere', () => {
+    const editor = new Editor(
+      sessaoDaBlusa(),
+      [ferramentaMoverPonto({ modo: 'discreto', nVizinhos: 0 })],
+      1280,
+      800,
+    );
+    editor.camera.definirZoom(1);
+    const antes = Object.keys(editor.cena.derivados(PECA).peca.pontos).length;
+
+    // A bainha vai de (0,0) a (180,0). Meio milimetro depois do canto.
+    const colado: Vetor2 = { x: 500, y: 0 };
+    editor.apontar(colado);
+    editor.arrastar({ x: 500, y: 20 * MM }, ALT);
+    editor.soltar({ x: 500, y: 20 * MM }, ALT);
+
+    const depois = Object.keys(editor.cena.derivados(PECA).peca.pontos).length;
+    console.log('--- farpa ---');
+    console.log(
+      `arrastou a 0.5 mm do canto -> ${tipos(editor).join(', ')} | ` +
+        `pontos ${antes} -> ${depois} (nao nasceu ponto colado no vizinho)`,
+    );
+    expect(tipos(editor)).toEqual(['ModificarPonto']);
+    expect(depois).toBe(antes);
+    expect(carga(editor)['pontoId']).toBe('pt-0');
+  });
+
+  it('longe do vertice, o ponto nasce normalmente', () => {
+    const editor = new Editor(
+      sessaoDaBlusa(),
+      [ferramentaMoverPonto({ modo: 'discreto', nVizinhos: 0 })],
+      1280,
+      800,
+    );
+    editor.camera.definirZoom(1);
+    const antes = Object.keys(editor.cena.derivados(PECA).peca.pontos).length;
+    editor.apontar({ x: 90 * MM, y: 0 });
+    editor.arrastar({ x: 90 * MM, y: 20 * MM }, ALT);
+    editor.soltar({ x: 90 * MM, y: 20 * MM }, ALT);
+    console.log(
+      `arrastou no meio da bainha -> ${tipos(editor).join(', ')} | ` +
+        `pontos ${antes} -> ${Object.keys(editor.cena.derivados(PECA).peca.pontos).length}`,
+    );
+    expect(tipos(editor)).toEqual(['InserirPonto', 'ModificarPonto']);
+  });
+});

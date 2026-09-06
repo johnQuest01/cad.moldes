@@ -16,6 +16,7 @@ import {
   inserirPonto,
   mmParaUM,
   medirAresta,
+  medirSegmento,
   modificarPonto,
   moverPique,
   transladarPeca,
@@ -31,6 +32,16 @@ import type { Modificadores } from './snap.js';
 
 /** Quanto o cursor precisa andar para o gesto virar arrasto, e nao clique. */
 export const LIMIAR_DE_ARRASTO_PX = 3;
+
+/**
+ * Pedaco minimo que um segmento pode sobrar ao ser partido, em UM (1 mm).
+ *
+ * Sem isto, arrastar em cima da linha bem ao lado de um vertice nasce um ponto a
+ * fracao de milimetro do vizinho, e o contorno ganha uma farpa — dois pontos
+ * quase no mesmo lugar, linha sobre linha. E o tipo de defeito que so aparece na
+ * hora de cortar.
+ */
+export const PEDACO_MINIMO_UM = 1000;
 
 const distancia = (a: Vetor2, b: Vetor2): number => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -183,7 +194,28 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
       // aresta sem vertice era intocavel, e so restava inserir ponto a parte e
       // voltar para mover. Um gesto, um passo de undo, dois eventos.
       if (alvo?.tipo === 'aresta') {
-        const s = Math.min(0.98, Math.max(0.02, alvo.sNoSegmento));
+        // Perto demais de um vertice: pega o VERTICE em vez de criar uma farpa.
+        const comprimento = medirSegmento(ctx.base(alvo.pecaId), alvo.segmentoId);
+        const folga = comprimento === 0 ? 1 : PEDACO_MINIMO_UM / comprimento;
+        if (alvo.sNoSegmento < folga || alvo.sNoSegmento > 1 - folga) {
+          const segmento = ctx.base(alvo.pecaId).segmentos[alvo.segmentoId]!;
+          const pontoId = alvo.sNoSegmento < 0.5 ? segmento.de : segmento.para;
+          const ponto = ctx.base(alvo.pecaId).pontos[pontoId]!;
+          ctx.selecao.clicar(
+            { tipo: 'ponto', pecaId: alvo.pecaId, pontoId, ponto },
+            mod,
+          );
+          arrasto = {
+            pecaId: alvo.pecaId,
+            pontos: [pontoId],
+            origem: { x: ponto.x, y: ponto.y },
+            dx: 0,
+            dy: 0,
+            nascendo: null,
+          };
+          return;
+        }
+        const s = alvo.sNoSegmento;
         const prefixoId = `mv-${ctx.cena.versaoDoLog}-${contador++}`;
         arrasto = {
           pecaId: alvo.pecaId,
