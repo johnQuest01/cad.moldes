@@ -62,4 +62,16 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
   essenciais: selecionar, mover ponto, mover peça, pique, inserir ponto e medir. **78 testes** no
   editor. Números no fim da Parte 4 — inclusive a prévia calculada na peça **base**, que é o que
   impede a previsualização de mentir no modo proporcional.
-- **Blocos 5 a 8 — a fazer.** O próximo é o Bloco 5: `@cad/editor-pixi`, o render.
+- **Bloco 5 — fechado.** `montarCena` (pura, a fronteira testável do render),
+  `@cad/editor-pixi` (PixiJS 8, camadas, overlay, tracejado que acompanha o zoom) e o **aplicativo**
+  em `app/`. **89 testes** no editor, **313 no total**. Provado sem navegador: o pique é desenhado
+  na linha de corte com a haste andando **12,00 mm** (a margem da lateral), camada desligada emite
+  zero comandos, peça fora da vista é pulada, e a espessura é **1,60 px em zoom 0.25, 1, 4 e 16**.
+- **Blocos 6 a 8 — a fazer.** Painéis completos (graduação, propriedades, peças), as 16 ferramentas
+  restantes e a persistência contra `@cad/api`.
+
+## Rodar o editor
+
+```bash
+npm run app        # http://localhost:5200
+```
