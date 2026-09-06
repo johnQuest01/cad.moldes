@@ -13,6 +13,7 @@ import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   LARGURA_PADRAO_DO_PIQUE_UM,
   MM,
+  inserirPonto,
   mmParaUM,
   medirAresta,
   modificarPonto,
@@ -23,6 +24,7 @@ import {
   type Vetor2,
 } from '@cad/motor';
 
+import type { TipoDeAlvo } from './alvo.js';
 import type { Contexto, Ferramenta } from './ferramenta.js';
 import { TIPOS_DO_MARQUEE, referenciaDe } from './selecao.js';
 import type { Modificadores } from './snap.js';
@@ -121,7 +123,24 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
     origem: Vetor2;
     dx: number;
     dy: number;
+    /**
+     * Preenchido quando o gesto comecou EM CIMA DA LINHA, e nao num vertice: o
+     * ponto ainda nao existe, e nasce junto com o movimento.
+     */
+    nascendo: { segmentoId: Id; s: number; prefixoId: Id } | null;
   } | null = null;
+  let contador = 0;
+
+  /**
+   * Esta ferramenta so mira VERTICE e LINHA.
+   *
+   * Pique e linha interna tem prioridade alta no hit-testing porque sao alvos
+   * pequenos — mas aqui eles so atrapalhavam: quem crava um pique para marcar onde
+   * a linha esta torta e depois tenta arrumar ali descobria que aquele pedaco do
+   * contorno tinha virado uma zona morta, porque o clique pegava o pique e a
+   * ferramenta parava. Cada um tem a sua ferramenta; esta e a do ponto.
+   */
+  const IGNORAR = new Set<TipoDeAlvo>(['pique', 'interna', 'controle']);
 
   /**
    * Grupo anda RIGIDO; ponto sozinho respeita o modo escolhido.
@@ -138,8 +157,12 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
   const aplicar = (ctx: Contexto, dx: number, dy: number): void => {
     if (arrasto === null) return;
     const { pecaId, pontos } = arrasto;
+    const nascendo = arrasto.nascendo;
     const previa = ctx.tentar(() => {
       let peca = ctx.base(pecaId);
+      if (nascendo !== null) {
+        peca = inserirPonto(peca, nascendo.segmentoId, nascendo.s, nascendo.prefixoId);
+      }
       for (const pontoId of pontos) {
         peca = modificarPonto(peca, pontoId, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length));
       }
@@ -153,7 +176,26 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
     atalho: 'M',
 
     aoApontar(ctx, em, mod) {
-      const alvo = ctx.alvo(em);
+      const alvo = ctx.alvo(em, { ignorar: IGNORAR });
+
+      // Comecou EM CIMA DA LINHA, longe de vertice: nasce um ponto ali e o gesto
+      // ja o arrasta. E o gesto de arrumar linha torta — antes disso, um trecho de
+      // aresta sem vertice era intocavel, e so restava inserir ponto a parte e
+      // voltar para mover. Um gesto, um passo de undo, dois eventos.
+      if (alvo?.tipo === 'aresta') {
+        const s = Math.min(0.98, Math.max(0.02, alvo.sNoSegmento));
+        const prefixoId = `mv-${ctx.cena.versaoDoLog}-${contador++}`;
+        arrasto = {
+          pecaId: alvo.pecaId,
+          pontos: [`${prefixoId}-p`],
+          origem: alvo.ponto,
+          dx: 0,
+          dy: 0,
+          nascendo: { segmentoId: alvo.segmentoId, s, prefixoId },
+        };
+        return;
+      }
+
       if (alvo === null || alvo.tipo !== 'ponto') {
         ctx.selecao.clicar(alvo, mod);
         return;
@@ -179,6 +221,7 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
         origem: alvo.ponto,
         dx: 0,
         dy: 0,
+        nascendo: null,
       };
     },
 
@@ -205,15 +248,34 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
       // deslocamento ANTIGO, e a peca "voltava" para onde tinha passado, em vez de
       // ficar onde foi largada.
       const final = deltaAte(ctx, arrasto.origem, em, mod);
-      const { pecaId, pontos } = arrasto;
+      const { pecaId, pontos, nascendo } = arrasto;
       const { dx, dy } = final;
       arrasto = null;
       // A cota do arrasto e do GESTO: acabou o gesto, some. A da regua e outra
       // coisa — ela e a saida da ferramenta, e fica ate a proxima medida.
       ctx.mostrarCota(null);
       if (dx === 0 && dy === 0) return;
-      // Um `emitir` so: mover cinco pontos e UM passo de undo, nao cinco.
-      ctx.emitir(...gestosDeMover(pecaId, pontos, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length)));
+
+      const inserir =
+        nascendo === null
+          ? []
+          : [
+              {
+                tipo: 'InserirPonto',
+                pecaId,
+                payload: {
+                  segmentoId: nascendo.segmentoId,
+                  s: nascendo.s,
+                  prefixoId: nascendo.prefixoId,
+                },
+              },
+            ];
+      // Um `emitir` so: mover cinco pontos e UM passo de undo, nao cinco — e
+      // inserir + mover, quando o ponto nasce no gesto, tambem e um passo so.
+      ctx.emitir(
+        ...inserir,
+        ...gestosDeMover(pecaId, pontos, dx, dy, modoDo(pontos.length), vizinhosDe(pontos.length)),
+      );
     },
 
     aoNumero(ctx, campos) {

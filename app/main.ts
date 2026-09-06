@@ -350,7 +350,7 @@ em('#camadas').addEventListener('change', (ev) => {
 /** A frase que diz o que fazer com a ferramenta ativa. */
 const DICAS: Readonly<Record<string, string>> = {
   selecionar: 'Clique, ou arraste uma caixa. Esquerda→direita pega o que está inteiro dentro; direita→esquerda pega o que a caixa toca.',
-  moverPonto: 'Arraste um vértice. Com vários selecionados, o grupo anda junto e rígido.',
+  moverPonto: 'Arraste um vértice — ou arraste em cima da linha, e o ponto nasce ali. Com vários selecionados, o grupo anda junto e rígido.',
   moverPeca: 'Arraste a peça. Com várias selecionadas, todas andam num passo só.',
   pique: 'Clique no contorno para cravar. Arraste um pique para deslizá-lo na aresta; Delete tira.',
   inserirPonto: 'Clique no contorno: nasce um ponto. Alt+clique num ponto do meio exclui.',

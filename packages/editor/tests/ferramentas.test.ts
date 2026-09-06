@@ -577,3 +577,79 @@ describe('O gesto vale onde o botao foi SOLTO', () => {
     expect(carga(editor)['dx']).toBe(70 * MM);
   });
 });
+
+// ===========================================================================
+// Arrumar linha torta: o pique nao pode criar zona morta
+// ===========================================================================
+
+describe('Mover a LINHA, e nao so o vertice', () => {
+  it('arrastar em cima da aresta faz nascer o ponto e ja o move — um passo de undo', () => {
+    const editor = novoEditor();
+    editor.usar('moverPonto');
+    const antes = Object.keys(editor.cena.derivados(PECA).peca.pontos).length;
+
+    // Meio da lateral: nao ha vertice nenhum aqui.
+    const naLinha: Vetor2 = { x: 185 * MM, y: 150 * MM };
+    editor.apontar(naLinha);
+    editor.arrastar({ x: naLinha.x + 12 * MM, y: naLinha.y }, ALT);
+    editor.soltar({ x: naLinha.x + 12 * MM, y: naLinha.y }, ALT);
+
+    const depois = Object.keys(editor.cena.derivados(PECA).peca.pontos).length;
+    console.log('--- arrumar linha torta ---');
+    console.log(
+      `arrastou 12 mm em cima da lateral -> ${tipos(editor).join(', ')} | ` +
+        `pontos ${antes} -> ${depois} | ${editor.sessao.passos} passo de undo`,
+    );
+
+    expect(tipos(editor)).toEqual(['InserirPonto', 'ModificarPonto']);
+    expect(depois).toBe(antes + 1);
+    expect(editor.sessao.passos).toBe(1);
+
+    editor.sessao.desfazer();
+    console.log(
+      `um desfazer -> ${Object.keys(editor.cena.derivados(PECA).peca.pontos).length} pontos ` +
+        `(o ponto que nasceu no gesto vai junto)`,
+    );
+    expect(Object.keys(editor.cena.derivados(PECA).peca.pontos)).toHaveLength(antes);
+  });
+
+  it('o pique NAO cria zona morta: com moverPonto, a linha continua pegavel', () => {
+    const editor = novoEditor();
+    // Crava um pique bem no meio da lateral.
+    editor.usar('pique');
+    const naLinha: Vetor2 = { x: 185 * MM, y: 150 * MM };
+    editor.apontar(naLinha);
+    editor.soltar(naLinha);
+    const noPique = editor.cena.derivados(PECA).piques[0]![1].pontoDaCostura;
+
+    // Agora tenta arrumar a linha EXATAMENTE onde o pique esta.
+    editor.usar('moverPonto');
+    const antes = editor.sessao.pendentes.length;
+    editor.apontar(noPique);
+    editor.arrastar({ x: noPique.x + 10 * MM, y: noPique.y }, ALT);
+    editor.soltar({ x: noPique.x + 10 * MM, y: noPique.y }, ALT);
+    const novos = editor.sessao.pendentes.slice(antes).map((e) => e.tipo);
+
+    console.log('--- em cima do pique ---');
+    console.log(
+      `arrastou em cima do pique cravado -> ${novos.join(', ') || 'NADA (zona morta)'}`,
+    );
+    expect(novos).toEqual(['InserirPonto', 'ModificarPonto']);
+  });
+
+  it('o pique continua sendo pego pela ferramenta DELE', () => {
+    const editor = novoEditor();
+    editor.usar('pique');
+    const naLinha: Vetor2 = { x: 185 * MM, y: 150 * MM };
+    editor.apontar(naLinha);
+    editor.soltar(naLinha);
+    const noPique = editor.cena.derivados(PECA).piques[0]![1].pontoDaCostura;
+
+    editor.apontar(noPique);
+    editor.arrastar({ x: noPique.x + 2 * MM, y: noPique.y + 60 * MM }, ALT);
+    editor.soltar({ x: noPique.x + 2 * MM, y: noPique.y + 60 * MM }, ALT);
+
+    console.log(`com a ferramenta de pique, o mesmo lugar -> ${tipos(editor).join(', ')}`);
+    expect(tipos(editor)).toEqual(['AdicionarPique', 'MoverPique']);
+  });
+});
