@@ -67,8 +67,13 @@ puder ser verificado abrindo o navegador e olhando, ele não vai ser verificado.
   em `app/`. **89 testes** no editor, **313 no total**. Provado sem navegador: o pique é desenhado
   na linha de corte com a haste andando **12,00 mm** (a margem da lateral), camada desligada emite
   zero comandos, peça fora da vista é pulada, e a espessura é **1,60 px em zoom 0.25, 1, 4 e 16**.
-- **Blocos 6 a 8 — a fazer.** Painéis completos (graduação, propriedades, peças), as 16 ferramentas
-  restantes e a persistência contra `@cad/api`.
+- **Bloco 7 — fechado.** As onze ferramentas de ponteiro que faltavam: controle da Bézier,
+  converter, fillet, chanfro, rotacionar, espelhar, dividir, eixo de dobra, par de costura, linha
+  interna e grade point. **17 ferramentas** no editor, **115 testes**. Números no fim da Parte 4.
+- **Papel do plotter — fechado** (fora da ordem, porque é ele que impede desenhar uma peça que não
+  imprime). `Papel` no modelo, `DefinirPapel`, `conferirPapel` no validador, as bordas úteis na tela
+  e a largura do corte contra a útil na ficha.
+- **Blocos 6 e 8 — a fazer.** Painéis de graduação e de peças, e a persistência contra `@cad/api`.
 
 ## Rodar o editor
 

@@ -248,3 +248,73 @@ A régua é onde se prova que a tela não mente: a cota **é** o retorno de `med
 refeita no editor. Se um dia divergir, é bug do motor — e é exatamente isso que se quer.
 
 **Próximo:** Bloco 5 — `@cad/editor-pixi`, o render.
+
+
+---
+
+## O que a implementação mostrou — Bloco 7 fechado
+
+**17 ferramentas** no editor, **115 testes** no `@cad/editor`, **344 no total**.
+
+### O que virou ferramenta e o que virou comando
+
+O catálogo previa 22 "ferramentas". Escrevendo, ficou claro que nem tudo é gesto de ponteiro:
+duplicar peça, simplificar contorno e definir margem da seleção são **comandos de menu**. Forçar
+tudo a virar ferramenta criaria máquina de estados para o que é um clique de botão. Então o Bloco 7
+entregou **onze ferramentas de ponteiro**, e os comandos ficaram como emissão direta de evento pela
+sessão — que é o mesmo caminho, sem o teatro.
+
+### Medido
+
+```
+--- converter ---
+bainha reta 180 mm -> convertida em curva 180 mm | ConverterSegmento para "curva"
+dois cliques -> ConverterSegmento, ConverterSegmento (o segundo volta para reta)
+
+--- controle da curva ---
+clique na cava -> alcas abertas em: sg-2
+arrastou o controle 25 mm -> MoverControle | a cava mudou de comprimento
+extremos intactos: (190, 300) e (150, 430) mm
+
+--- fillet ---
+raio 25 mm no canto da bainha -> ArredondarVertice | o perimetro ENCURTA
+raio de 5 m num canto de blusa -> FILLET_NAO_CABE, 0 eventos, versao inalterada
+
+--- chanfro ---
+clique com 10 mm -> 1 evento (10 mm)
+pt-1 ainda existe: false | digitar 30 nele -> PONTO_INEXISTENTE, 1 evento no total
+sem clicar, so digitando 30 no canto selecionado -> ChanfrarVertice com 30 mm
+
+--- rotacionar ---
+cota ao vivo "30.0°" -> RotacionarPeca com 30 graus (Shift prende de 15 em 15)
+girou 90 graus por valor digitado -> largura da peca 450 mm (era 190)
+
+--- espelhar ---
+eixo em x = 0 -> a peca foi de x>=0 para x<=0, maxX = 0 mm | area 801.7 -> 801.7 cm2
+
+--- dividir ---
+DividirPeca -> 2 pecas, e a original sumiu
+
+--- par de costura ---
+1 par | ar-cava + cp-ar-2 | embebido 25 mm (D9)
+
+--- grade point ---
+desmarcou gp-1 -> 5 grade points, 2 regra(s) orfa(s) ACUSADAS
+```
+
+### Duas coisas que os testes acharam
+
+**Chanfrar consome o vértice.** Depois de chanfrar `pt-1`, ele deixa de existir — o canto virou dois
+pontos novos. Digitar uma medida nova "naquele canto" é recusado com `PONTO_INEXISTENTE`, e nada é
+emitido. O teste que eu tinha escrito supunha o contrário; o comportamento é que estava certo.
+
+**Espelhar arredonda.** A área muda por uma fração de 1e-8 porque cada coordenada é arredondada para
+UM inteiro (D1). Exigir igualdade exata seria exigir que o motor guardasse float de milímetro, que é
+justamente o que a D1 proíbe.
+
+### Um buraco que o Bloco 7 revelou
+
+O painel de conferência do editor mostrava **só os problemas de cada peça**, e engolia em silêncio
+os de nível de MODELO: regra de graduação órfã, par de costura pendente e — recém-criada — a peça
+que não cabe no papel. O motor ganhou `conferirModelo`, que roda só a parte de modelo, e a `Cena`
+junta as duas. Sem isso, o aviso do papel existiria e nunca apareceria na tela.

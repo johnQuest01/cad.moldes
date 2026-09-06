@@ -68,12 +68,27 @@ export function validarInconsistencias(modelo: Modelo, pecaId: Id): Problema[] {
   return problemas;
 }
 
-/** Roda `validarInconsistencias` em todas as pecas e junta o casamento de costuras. */
+/** Roda `validarInconsistencias` em todas as pecas e junta o que e de MODELO. */
 export function validarModelo(modelo: Modelo): Problema[] {
   const problemas: Problema[] = [];
   for (const pecaId of Object.keys(modelo.pecas)) {
     problemas.push(...validarInconsistencias(modelo, pecaId));
   }
+  problemas.push(...conferirModelo(modelo));
+  return problemas;
+}
+
+/**
+ * So o que e de NIVEL DE MODELO: casamento de costuras, referencias orfas e o
+ * papel do plotter.
+ *
+ * Existe separado porque quem ja tem os problemas por peca em cache — o editor
+ * tem — precisa juntar estes sem refazer a validacao de cada peca. Sem esta
+ * porta, o editor mostrava so os problemas da peca e engolia em silencio a regra
+ * de graduacao orfa, o par de costura pendente e a peca que nao cabe no papel.
+ */
+export function conferirModelo(modelo: Modelo): Problema[] {
+  const problemas: Problema[] = [];
   problemas.push(...comoProblemas(() => validarCasamento(modelo)));
   conferirReferenciasDoModelo(modelo, problemas);
   conferirPapel(modelo, problemas);

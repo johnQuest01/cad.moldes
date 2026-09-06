@@ -90,3 +90,23 @@ export {
   type Tinta,
   type OpcoesDaCena,
 } from './desenho.js';
+
+export {
+  ferramentasAvancadas,
+  ferramentaControle,
+  ferramentaConverter,
+  ferramentaFillet,
+  ferramentaChanfro,
+  ferramentaRotacionar,
+  ferramentaEspelhar,
+  ferramentaDividir,
+  ferramentaEixoDobra,
+  ferramentaParCostura,
+  ferramentaLinhaInterna,
+  ferramentaGradePoint,
+  type OpcoesDeCanto,
+  type OpcoesDeDividir,
+  type OpcoesDePar,
+  type OpcoesDeLinha,
+  type TipoDeLinha,
+} from './ferramentas-avancadas.js';

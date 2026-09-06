@@ -20,6 +20,7 @@ import {
   ErroMotor,
   anelDoContorno,
   aplicarGraduacao,
+  conferirModelo,
   offsetMargem,
   projetarPique,
   tabelaArcoDaAresta,
@@ -123,6 +124,13 @@ export class Cena {
    * corte NA CALADA: some do desenho e ninguem e avisado. Erro explicito e sucesso.
    */
   get problemas(): readonly Problema[] {
+    // Os de nivel de MODELO entram junto: regra de graduacao orfa, par de costura
+    // pendente e peca que nao cabe no papel nao pertencem a nenhuma peca sozinha,
+    // e sem esta linha o painel de conferencia os engolia.
+    return [...conferirModelo(this.modelo), ...this.#problemasDasPecas()];
+  }
+
+  #problemasDasPecas(): Problema[] {
     return this.pecas.flatMap((id) => {
       const derivados = this.derivados(id);
       if (derivados.erro === null) return derivados.problemas;

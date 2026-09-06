@@ -151,6 +151,53 @@
           <button data-ferramenta="inserirPonto">I · inserir ponto</button>
           <button data-ferramenta="medir">L · medir</button>
         </div>
+        <h2 style="margin-top:14px">Forma e peça</h2>
+        <div class="coluna" id="ferramentas-2">
+          <button data-ferramenta="controle">B · curva (alças)</button>
+          <button data-ferramenta="converter">C · reta ↔ curva</button>
+          <button data-ferramenta="fillet">F · fillet</button>
+          <button data-ferramenta="chanfro">H · chanfro</button>
+          <button data-ferramenta="rotacionar">R · rotacionar</button>
+          <button data-ferramenta="espelhar">E · espelhar</button>
+          <button data-ferramenta="dividir">D · dividir</button>
+          <button data-ferramenta="eixoDobra">X · eixo de dobra</button>
+          <button data-ferramenta="parCostura">P · par de costura</button>
+          <button data-ferramenta="linhaInterna">T · linha interna</button>
+          <button data-ferramenta="gradePoint">K · grade point</button>
+        </div>
+      </div>
+
+      <div id="opcoes-canto" hidden>
+        <h2>Fillet / chanfro</h2>
+        <label class="campo">
+          <span>Medida</span><b id="valor-canto">20 mm</b>
+          <input type="range" id="medida-canto" min="1" max="80" step="1" value="20">
+        </label>
+      </div>
+
+      <div id="opcoes-linha" hidden>
+        <h2>Linha interna</h2>
+        <label class="campo">
+          <span>Tipo</span><b></b>
+          <select id="tipo-linha">
+            <option value="fio" selected>fio do tecido</option>
+            <option value="pence">pence</option>
+            <option value="furo">furo</option>
+            <option value="referencia">referência</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="opcoes-par" hidden>
+        <h2>Par de costura</h2>
+        <label class="campo">
+          <span>Embebido</span><b id="valor-embebido">0 mm</b>
+          <input type="range" id="embebido" min="0" max="50" step="1" value="0">
+        </label>
+        <p class="nota" style="margin-top:6px">
+          Quanto a segunda aresta deve ser <em>maior</em> que a primeira. Copa de manga
+          em tecido plano: 20 a 25&nbsp;mm. Malha: zero.
+        </p>
       </div>
 
       <div id="opcoes-mover" hidden>
@@ -240,6 +287,11 @@
       <div>
         <h2>Log de eventos</h2>
         <div id="log"></div>
+      </div>
+
+      <div>
+        <h2>Como usar</h2>
+        <p class="nota" id="dica"></p>
       </div>
 
       <p class="nota">

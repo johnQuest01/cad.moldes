@@ -8,6 +8,7 @@
  */
 import {
   Editor,
+  ferramentasAvancadas,
   ferramentaMoverPonto,
   ferramentaPique,
   ferramentaInserirPonto,
@@ -18,10 +19,15 @@ import {
   type Ferramenta,
   type OpcoesDeMover,
   type OpcoesDePique,
+  type OpcoesDeCanto,
+  type OpcoesDeDividir,
+  type OpcoesDeLinha,
+  type OpcoesDePar,
 } from '@cad/editor';
 import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pixi';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
+  type Id,
   LARGURA_PADRAO_DO_PIQUE_UM,
   MM,
   criarGeradorMonotonico,
@@ -49,6 +55,13 @@ const sessao = new Sessao(logDaBlusa(), {
   gerarId: () => gerar(),
 });
 
+const opcoesDeCanto: OpcoesDeCanto = { medidaMM: 20 };
+const opcoesDeDividir: OpcoesDeDividir = { margemMM: 10 };
+const opcoesDePar: OpcoesDePar = { embebidoMM: 0 };
+const opcoesDeLinha: OpcoesDeLinha = { tipo: 'fio' };
+/** Segmentos com as alcas da Bezier a mostra. A ferramenta enche, a cena le. */
+const segmentosAbertos = new Set<Id>();
+
 const ferramentas: Ferramenta[] = [
   ferramentaSelecionar(),
   ferramentaMoverPonto(opcoesDeMover),
@@ -56,6 +69,13 @@ const ferramentas: Ferramenta[] = [
   ferramentaPique(opcoesDePique),
   ferramentaInserirPonto(),
   ferramentaMedir(),
+  ...ferramentasAvancadas({
+    segmentosAbertos,
+    canto: opcoesDeCanto,
+    dividir: opcoesDeDividir,
+    par: opcoesDePar,
+    linha: opcoesDeLinha,
+  }),
 ];
 
 const editor = new Editor(sessao, ferramentas);
@@ -73,7 +93,7 @@ await tela.iniciar(palco);
 editor.camera.enquadrar(editor.cena.caixa(), 48);
 
 function redesenhar(): void {
-  tela.render({ encaixe: estado.encaixe }, true);
+  tela.render({ encaixe: estado.encaixe, comControleVisivel: segmentosAbertos }, true);
   atualizarPaineis();
 }
 
@@ -175,6 +195,10 @@ function atualizarPaineis(): void {
   (em('#refazer') as HTMLButtonElement).disabled = !sessao.podeRefazer;
   em('#opcoes-mover').hidden = editor.ferramenta !== 'moverPonto';
   em('#opcoes-pique').hidden = editor.ferramenta !== 'pique';
+  em('#opcoes-canto').hidden = !['fillet', 'chanfro'].includes(editor.ferramenta);
+  em('#opcoes-linha').hidden = editor.ferramenta !== 'linhaInterna';
+  em('#opcoes-par').hidden = editor.ferramenta !== 'parCostura';
+  em('#dica').textContent = DICAS[editor.ferramenta] ?? '';
   em('#contagem').textContent = `${editor.selecao.tamanho} selecionado(s)`;
 }
 
@@ -187,10 +211,21 @@ const ATALHOS: Readonly<Record<string, string>> = {
   n: 'pique',
   i: 'inserirPonto',
   l: 'medir',
+  b: 'controle',
+  c: 'converter',
+  f: 'fillet',
+  h: 'chanfro',
+  r: 'rotacionar',
+  e: 'espelhar',
+  d: 'dividir',
+  x: 'eixoDobra',
+  p: 'parCostura',
+  t: 'linhaInterna',
+  k: 'gradePoint',
 };
 
 function marcarFerramenta(): void {
-  document.querySelectorAll('#ferramentas button').forEach((botao) => {
+  document.querySelectorAll('#ferramentas button, #ferramentas-2 button').forEach((botao) => {
     botao.setAttribute(
       'aria-pressed',
       String((botao as HTMLElement).dataset['ferramenta'] === editor.ferramenta),
@@ -198,13 +233,15 @@ function marcarFerramenta(): void {
   });
 }
 
-em('#ferramentas').addEventListener('click', (ev) => {
-  const botao = (ev.target as HTMLElement).closest('button');
-  if (botao === null) return;
-  editor.usar(botao.dataset['ferramenta']!);
-  marcarFerramenta();
-  redesenhar();
-});
+for (const barra of ['#ferramentas', '#ferramentas-2']) {
+  em(barra).addEventListener('click', (ev) => {
+    const botao = (ev.target as HTMLElement).closest('button');
+    if (botao === null) return;
+    editor.usar(botao.dataset['ferramenta']!);
+    marcarFerramenta();
+    redesenhar();
+  });
+}
 
 globalThis.addEventListener('keydown', (ev) => {
   const foco = ev.target as HTMLElement | null;
@@ -294,10 +331,42 @@ em('#camadas').addEventListener('change', (ev) => {
   opcoesDePique.profundidadeMM = Number((ev.target as HTMLInputElement).value);
   em('#valor-profundidade').textContent = `${opcoesDePique.profundidadeMM} mm`;
 });
+(em('#medida-canto') as HTMLInputElement).addEventListener('input', (ev) => {
+  opcoesDeCanto.medidaMM = Number((ev.target as HTMLInputElement).value);
+  em('#valor-canto').textContent = `${opcoesDeCanto.medidaMM} mm`;
+});
+(em('#tipo-linha') as HTMLSelectElement).addEventListener('change', (ev) => {
+  opcoesDeLinha.tipo = (ev.target as HTMLSelectElement).value as OpcoesDeLinha['tipo'];
+});
+(em('#embebido') as HTMLInputElement).addEventListener('input', (ev) => {
+  opcoesDePar.embebidoMM = Number((ev.target as HTMLInputElement).value);
+  em('#valor-embebido').textContent = `${opcoesDePar.embebidoMM} mm`;
+});
 (em('#encaixe') as HTMLInputElement).addEventListener('change', (ev) => {
   estado.encaixe = (ev.target as HTMLInputElement).checked;
   redesenhar();
 });
+
+/** A frase que diz o que fazer com a ferramenta ativa. */
+const DICAS: Readonly<Record<string, string>> = {
+  selecionar: 'Clique, ou arraste uma caixa. Esquerda→direita pega o que está inteiro dentro; direita→esquerda pega o que a caixa toca.',
+  moverPonto: 'Arraste um vértice. Com vários selecionados, o grupo anda junto e rígido.',
+  moverPeca: 'Arraste a peça. Com várias selecionadas, todas andam num passo só.',
+  pique: 'Clique no contorno para cravar. Arraste um pique para deslizá-lo na aresta; Delete tira.',
+  inserirPonto: 'Clique no contorno: nasce um ponto. Alt+clique num ponto do meio exclui.',
+  medir: 'Clique numa aresta para o comprimento dela, ou em dois lugares para a distância.',
+  controle: 'Clique numa aresta para abrir as alças da curva; arraste uma alça para dar forma.',
+  converter: 'Clique numa aresta: reta vira curva e curva vira reta. Converter não muda medida.',
+  fillet: 'Clique num vértice para arredondar. O raio está aqui do lado.',
+  chanfro: 'Clique num vértice para chanfrar. A distância está aqui do lado.',
+  rotacionar: 'Arraste em volta da peça. Shift prende de 15 em 15 graus.',
+  espelhar: 'Dois cliques definem o eixo do espelho.',
+  dividir: 'Dois cliques definem por onde cortar. A peça vira duas, cada uma com margem nova.',
+  eixoDobra: 'Dois cliques marcam o eixo de dobra.',
+  parCostura: 'Clique em duas arestas de peças DIFERENTES para declarar que costuram juntas.',
+  linhaInterna: 'Dois cliques e nasce a linha. Ela gradua junto com a peça.',
+  gradePoint: 'Clique num vértice para marcar ou desmarcar o grade point.',
+};
 
 // Papel do plotter. O rolo e da casa, entao e evento de MODELO (pecaId null).
 const MARGEM_DO_PLOTTER_MM = 10;

@@ -132,7 +132,7 @@ export {
   type ModoDeEdicao,
 } from './edicao.js';
 
-export { validarInconsistencias, validarModelo } from './validar.js';
+export { validarInconsistencias, validarModelo, conferirModelo } from './validar.js';
 
 export {
   validarCasamento,
