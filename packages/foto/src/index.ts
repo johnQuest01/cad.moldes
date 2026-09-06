@@ -45,3 +45,17 @@ export {
   type Regiao,
   type Rotulagem,
 } from './regioes.js';
+
+export {
+  detectarQuadro,
+  type Marca,
+  type OpcoesDoQuadro,
+  type ProblemaDoQuadro,
+  type QuadroDetectado,
+} from './quadro.js';
+
+export {
+  TOLERANCIA_DE_ASPECTO,
+  aspectoDetectado,
+  conferirQuadroContraCalibracao,
+} from './quadro.js';

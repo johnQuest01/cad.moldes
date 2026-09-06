@@ -13,7 +13,7 @@ regra da Parte 0: "passou" sem o número não conta.
 
 ---
 
-## Parte 0 — As decisões que não se negociam (I1 – I12)
+## Parte 0 — As decisões que não se negociam (I1 – I14)
 
 ### I1. Sem referência de tamanho conhecido, a foto é recusada
 
@@ -135,6 +135,89 @@ e o molde entra com esse aviso colado nele. Precisão não medida não vira núm
 ### I12. Tolerância alvo: ±1 mm
 
 É a tolerância de molde do ofício. Todo teste desta fase é julgado contra ela.
+
+### I13. Onde a regra da "biblioteca testada" começa
+
+A decisão 3 da Parte 0 manda tirar **geometria** de biblioteca testada, e ela vale inteira:
+homografia e ajuste de reta vêm do `ml-matrix`, Minkowski vem do `clipper2`, ajuste de Bézier
+virá de implementação publicada.
+
+Rotular componentes conexos, preencher buraco e andar pela borda de um conjunto de pixels são
+**domínio de imagem**, não de geometria, e ficam neste pacote. A alternativa era carregar 14 MB
+de OpenCV em WASM só para isso.
+
+A troca é explícita para não virar exceção silenciosa, e o preço dela é pago em teste: cada uma
+dessas funções é conferida contra **figura sintética de resposta conhecida de antemão** —
+retângulo, anel, disco, dois quadrados que se tocam na quina — **antes** de ver qualquer foto.
+
+Foi assim que o defeito apareceu: o traçado de borda devolvia **4 pontos** num retângulo de
+20 × 15 px, onde a resposta certa é **66**, porque faltava o rastro do algoritmo de Moore e o
+caminho cortava por dentro. Na foto ninguém teria percebido — 1103 pontos parecem plausíveis, e
+lá ninguém sabe a resposta certa.
+
+### I14. A calibração se mede com um OBJETO CONHECIDO, não com trena no quadro
+
+Esta decisão nasceu de um achado na foto do ateliê, e ele é a melhor propaganda que a
+decisão I1 podia ter.
+
+A foto traz escrito **"138 × 72 cm"**, o que dá proporção **1,917**. O quadro medido na
+própria foto, pelas 153 marcas da borda, dá **1,742** — **9,1% de diferença**.
+
+Não é distorção da imagem: as marcas semicirculares saem **17 × 9 px** nos lados de cima e
+de baixo e **8 × 16 px** nos lados esquerdo e direito, e √(2 × 0,5) = **1,0000**. Pixel
+quadrado, imagem não esticada. A diferença é real.
+
+Ou seja: **aquele rótulo não descreve o retângulo que passa pelos centros das marcas.** E o
+mais perigoso é o que acontece se ele for aceito:
+
+```
+com a calibracao ERRADA, o residuo nos quatro cantos e 0.000 UM — ou seja, ZERO.
+```
+
+A homografia leva **qualquer** quadrilátero em **qualquer** retângulo. Ela fecha
+perfeitamente, não reclama nunca, e entrega todo molde esticado 9% num eixo só. É o mesmo
+padrão dos cantos trocados (I3): a conta fecha, e o erro só aparece na mesa de corte.
+
+Daí a decisão, e ela troca uma medida difícil por uma fácil:
+
+> **Não se mede o quadro com trena.** Fotografa-se **uma vez** um retângulo de papel de
+> tamanho conhecido — medido com trena, que é medida de aresta e qualquer um faz certo —
+> preso no quadro. Dessa foto o sistema deriva a escala e a proporção verdadeiras do
+> retângulo de marcas, guarda como calibração do ateliê, e nunca mais precisa do objeto.
+
+Duas incógnitas (escala e proporção), duas medidas conhecidas (a largura e a altura do
+retângulo de papel): o sistema fecha. E a mesma foto que calibra é a que mede a precisão,
+porque o erro no retângulo conhecido é o teste T1.
+
+Enquanto a calibração não existir, `conferirQuadroContraCalibracao` compara a proporção
+declarada com a medida e **recusa** acima de 8% — folga que deixa a perspectiva passar (na
+foto do ateliê os lados opostos diferem 0,4% e 4,6%) e ainda pega erro de medida ou de
+digitação.
+
+### Medido no quadro da foto real
+
+| | Resultado |
+|---|---|
+| Marcas de borda aceitas | **153** (de 156 manchas brancas) |
+| Distribuição (baixo, direita, cima, esquerda) | **42, 27, 42, 15** |
+| Maior mancha branca da imagem | **28 693 px** — a barra do programa, descartada pelo filtro de tamanho |
+| Maior marca aceita | **403 px** |
+| Pior desvio de uma marca à reta do lado dela | **5,06 px** |
+| Proporção declarada no rótulo | **1,9167** |
+| Proporção medida no quadro | **1,7415** → recusada |
+| Resíduo da homografia com a calibração errada | **0,000 UM** — a prova de que ela nunca reclama |
+
+**Uma reta por lado, e não os quatro cantos direto.** Com ~40 marcas por lado o erro de
+detecção de cada marca é diluído pela raiz do número delas — algo como 6× —, e os cantos
+saem do **cruzamento** das retas, sem depender de nenhuma marca isolada.
+
+**As marcas de canto ficam de fora do ajuste.** A marca do canto é compartilhada entre dois
+lados e entra torta em qualquer um que a pegue: medido, o desvio ia a 4,6 px nas
+extremidades enquanto o miolo do lado ficava em 1,4 px. Descartar 8% de cada ponta resolve.
+
+**A curvatura da lente não precisa de correção nesta resolução.** O perfil do desvio ao
+longo dos lados de cima e de baixo é plano no miolo (±1,4 px) e não tem a barriga suave que
+distorção de barril produziria.
 
 ---
 
