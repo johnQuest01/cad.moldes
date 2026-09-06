@@ -141,6 +141,9 @@ export function ferramentaMoverPonto(opcoes: OpcoesDeMover): Ferramenta {
       if (arrasto === null) return;
       const { pecaId, pontoId, dx, dy } = arrasto;
       arrasto = null;
+      // A cota do arrasto e do GESTO: acabou o gesto, some. A da regua e outra
+      // coisa — ela e a saida da ferramenta, e fica ate a proxima medida.
+      ctx.mostrarCota(null);
       if (dx === 0 && dy === 0) return;
       ctx.emitir({
         tipo: 'ModificarPonto',

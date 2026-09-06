@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cad.moldes — editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --papel: #f4f6f8; --mesa: #ffffff; --tinta: #14181d; --fraco: #5c6672;
+    --regua: #dde3ea; --costura: #1f5fd0; --selecao: #b8860b;
+    --ok-fundo: #e7f4ec; --ok-tinta: #0d5c33;
+    --av-fundo: #fdf3d8; --av-tinta: #7a5600;
+    --er-fundo: #fdeaec; --er-tinta: #93132a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --papel: #0e1116; --mesa: #161b22; --tinta: #e7edf4; --fraco: #8d99a8;
+      --regua: #262d37; --costura: #6ea3ff; --selecao: #ffc247;
+      --ok-fundo: #0f2a1c; --ok-tinta: #6fdca4;
+      --av-fundo: #2c2306; --av-tinta: #e8c96a;
+      --er-fundo: #33121a; --er-tinta: #ff9aa3;
+    }
+  }
+  :root[data-theme="dark"] {
+    --papel: #0e1116; --mesa: #161b22; --tinta: #e7edf4; --fraco: #8d99a8;
+    --regua: #262d37; --costura: #6ea3ff; --selecao: #ffc247;
+    --ok-fundo: #0f2a1c; --ok-tinta: #6fdca4;
+    --av-fundo: #2c2306; --av-tinta: #e8c96a;
+    --er-fundo: #33121a; --er-tinta: #ff9aa3;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--papel); color: var(--tinta);
+    font: 14px/1.5 "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    overflow: hidden;
+  }
+  :where(button, input, select):focus-visible { outline: 2px solid var(--costura); outline-offset: 2px; }
+
+  .quadro { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--mesa); border-bottom: 1px solid var(--regua);
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  .selo {
+    font: 500 10px/1 "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--fraco);
+    border: 1px solid var(--regua); border-radius: 3px; padding: 4px 7px;
+  }
+  #contagem { margin-left: auto; color: var(--fraco); font: 500 12px/1 "IBM Plex Mono", monospace; }
+
+  main { display: grid; grid-template-columns: 240px minmax(0,1fr) 268px; min-height: 0; }
+
+  aside {
+    background: var(--mesa); padding: 14px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  aside.esquerda { border-right: 1px solid var(--regua); }
+  aside.direita { border-left: 1px solid var(--regua); }
+
+  #palco { position: relative; min-width: 0; min-height: 0; touch-action: none; cursor: crosshair; }
+  #palco canvas { display: block; }
+
+  h2 {
+    margin: 0 0 8px; font: 600 10px/1 "IBM Plex Mono", ui-monospace, monospace;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--fraco);
+  }
+
+  .fileira { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 5px; }
+  .coluna { display: grid; gap: 5px; }
+  button {
+    padding: 8px 6px; cursor: pointer; color: var(--tinta); background: var(--papel);
+    border: 1px solid var(--regua); border-radius: 4px;
+    font: 500 12px/1.2 "IBM Plex Mono", ui-monospace, monospace;
+  }
+  button:hover:not(:disabled) { border-color: var(--costura); }
+  button:disabled { opacity: .4; cursor: default; }
+  button[aria-pressed="true"] { background: var(--costura); border-color: var(--costura); color: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) button[aria-pressed="true"] { color: #0e1116; }
+  }
+
+  .opcao { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
+  .opcao input { accent-color: var(--costura); margin: 0; }
+  .opcao input[data-travar] { margin-left: auto; accent-color: var(--selecao); }
+
+  label.campo { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; font-size: 12.5px; }
+  label.campo > span { color: var(--fraco); }
+  label.campo > b { font: 500 12.5px "IBM Plex Mono", monospace; }
+  label.campo input[type="range"], select { grid-column: 1/-1; width: 100%; accent-color: var(--costura); }
+  select, input[type="number"] {
+    padding: 6px 7px; color: var(--tinta); background: var(--papel);
+    border: 1px solid var(--regua); border-radius: 4px;
+    font: 500 12px "IBM Plex Mono", monospace;
+  }
+  form { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+  form button { grid-column: 1/-1; }
+
+  .linha {
+    display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 5px 0;
+    border-bottom: 1px solid var(--regua); font-size: 12.5px; align-items: baseline;
+  }
+  .linha:last-child { border-bottom: 0; }
+  .linha span { color: var(--fraco); }
+  .linha b { font: 500 12.5px "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  .alerta { margin-top: 12px; padding: 9px 10px; border-radius: 5px; font-size: 12px; line-height: 1.5; }
+  .alerta.ok { background: var(--ok-fundo); color: var(--ok-tinta); }
+  .alerta.aviso { background: var(--av-fundo); color: var(--av-tinta); }
+  .alerta.erro { background: var(--er-fundo); color: var(--er-tinta); }
+
+  #log { max-height: 190px; overflow-y: auto; }
+  .evt {
+    display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 4px 0;
+    border-bottom: 1px solid var(--regua);
+    font: 500 11.5px "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .evt .n { color: var(--fraco); }
+  .evt .t { color: var(--costura); }
+  .nota { margin: 0; color: var(--fraco); font-size: 11.5px; line-height: 1.6; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="quadro">
+  <header>
+    <h1>cad.moldes</h1>
+    <span class="selo">editor · fase 2</span>
+    <div class="fileira" id="tamanhos" style="width:150px"></div>
+    <button id="desfazer" type="button" style="width:auto;padding:8px 12px">desfazer</button>
+    <button id="refazer" type="button" style="width:auto;padding:8px 12px">refazer</button>
+    <button id="enquadrar" type="button" style="width:auto;padding:8px 12px">ver tudo</button>
+    <span id="contagem"></span>
+  </header>
+
+  <main>
+    <aside class="esquerda">
+      <div>
+        <h2>Ferramenta</h2>
+        <div class="coluna" id="ferramentas">
+          <button data-ferramenta="selecionar" aria-pressed="true">V · selecionar</button>
+          <button data-ferramenta="moverPonto">M · mover ponto</button>
+          <button data-ferramenta="moverPeca">G · mover peça</button>
+          <button data-ferramenta="pique">N · pique</button>
+          <button data-ferramenta="inserirPonto">I · inserir ponto</button>
+          <button data-ferramenta="medir">L · medir</button>
+        </div>
+      </div>
+
+      <div id="opcoes-mover" hidden>
+        <h2>Mover ponto</h2>
+        <label class="campo">
+          <span>Vizinhos seguem</span><b></b>
+          <select id="modo">
+            <option value="proporcional" selected>proporcional</option>
+            <option value="discreto">discreto</option>
+          </select>
+        </label>
+        <label class="campo" style="margin-top:8px">
+          <span>Vizinhos</span><b id="valor-vizinhos">2 de cada lado</b>
+          <input type="range" id="vizinhos" min="0" max="4" step="1" value="2">
+        </label>
+        <h2 style="margin-top:14px">Valor exato</h2>
+        <form id="exato">
+          <input type="number" id="dx" step="0.1" placeholder="dx mm">
+          <input type="number" id="dy" step="0.1" placeholder="dy mm">
+          <button type="submit">aplicar</button>
+        </form>
+      </div>
+
+      <div id="opcoes-pique" hidden>
+        <h2>Pique</h2>
+        <label class="campo">
+          <span>Tipo</span><b></b>
+          <select id="tipo-pique">
+            <option value="V" selected>V — ASTM 4</option>
+            <option value="I">I — slit, ASTM 4</option>
+            <option value="T">T — ASTM 80</option>
+            <option value="U">U — ASTM 83</option>
+          </select>
+        </label>
+        <label class="campo" style="margin-top:8px">
+          <span>Profundidade</span><b id="valor-profundidade">6.35 mm</b>
+          <input type="range" id="profundidade" min="1" max="20" step="0.05" value="6.35">
+        </label>
+        <p class="nota" style="margin-top:8px">
+          6,35 × 1,59 mm é o notcher padrão (1/4″ × 1/16″). Mais fundo que a margem, o validador avisa.
+        </p>
+      </div>
+
+      <div>
+        <h2>Margem da seleção</h2>
+        <form id="margem">
+          <input type="number" id="valor-margem" step="0.5" placeholder="mm">
+          <button type="submit" style="grid-column:auto">definir</button>
+        </form>
+        <p class="nota" style="margin-top:6px">Selecione arestas e defina a margem de todas de uma vez.</p>
+      </div>
+    </aside>
+
+    <div id="palco"></div>
+
+    <aside class="direita">
+      <div>
+        <h2>Camadas</h2>
+        <div class="coluna" id="camadas"></div>
+        <label class="opcao" style="margin-top:10px">
+          <input type="checkbox" id="encaixe"> graduação encaixada
+        </label>
+      </div>
+
+      <div>
+        <h2>Ficha da peça</h2>
+        <div id="ficha"></div>
+        <div id="alerta" class="alerta ok"></div>
+      </div>
+
+      <div>
+        <h2>Log de eventos</h2>
+        <div id="log"></div>
+      </div>
+
+      <p class="nota">
+        Roda / Ctrl+roda: zoom no cursor. Botão do meio: pan. Shift: ortogonal.
+        Alt: desliga o snap. Ctrl+Z / Ctrl+Shift+Z. 0: ver tudo.
+      </p>
+    </aside>
+  </main>
+</div>
+<script type="module" src="/main.ts"></script>
+</body>
+</html>

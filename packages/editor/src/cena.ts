@@ -89,18 +89,53 @@ export class Cena {
     if (guardado !== undefined) return guardado;
 
     const calculado = this.#calcular(pecaId);
-    // O cache guarda so a versao corrente: manter historico seria vazamento lento
-    // num editor que fica aberto o dia inteiro.
+    // Guarda so a versao corrente — historico seria vazamento lento num editor
+    // aberto o dia inteiro. Os tamanhos da grade convivem: a graduacao encaixada
+    // pede todos a cada quadro, e expulsar um deles faria recalcular sem parar.
+    const sufixo = `|${this.#sessao.versao}|`;
     for (const antiga of this.#cache.keys()) {
-      if (!antiga.endsWith(`|${this.#sessao.versao}|${this.tamanho}`)) this.#cache.delete(antiga);
+      if (!antiga.includes(sufixo)) this.#cache.delete(antiga);
     }
     this.#cache.set(chave, calculado);
     return calculado;
   }
 
-  /** Problemas de todas as pecas. E o que o painel de conferencia mostra (E14). */
+  /**
+   * Os derivados da peca noutro tamanho — e o que a graduacao encaixada desenha.
+   * Devolve `null` se o tamanho nao esta na grade, em vez de estourar: o fantasma
+   * e enfeite, e enfeite nao derruba o desenho.
+   */
+  derivadosDoTamanho(pecaId: Id, tamanho: string): Derivados | null {
+    if (!this.modelo.tamanhos.includes(tamanho)) return null;
+    const guardado = this.#tamanho;
+    this.#tamanho = tamanho;
+    try {
+      return this.derivados(pecaId);
+    } finally {
+      this.#tamanho = guardado;
+    }
+  }
+
+  /**
+   * Problemas de todas as pecas — inclusive o erro derivado (E14).
+   *
+   * Sem a segunda metade, uma peca cuja margem o motor recusa perderia a linha de
+   * corte NA CALADA: some do desenho e ninguem e avisado. Erro explicito e sucesso.
+   */
   get problemas(): readonly Problema[] {
-    return this.pecas.flatMap((id) => this.derivados(id).problemas);
+    return this.pecas.flatMap((id) => {
+      const derivados = this.derivados(id);
+      if (derivados.erro === null) return derivados.problemas;
+      return [
+        ...derivados.problemas,
+        {
+          gravidade: 'erro' as const,
+          codigo: derivados.erro.codigo,
+          mensagem: `Sem linha de corte: ${derivados.erro.message}`,
+          pecaId: id,
+        },
+      ];
+    });
   }
 
   /** A caixa de tudo o que esta no modelo — o "ver tudo" da camera. */

@@ -12,9 +12,11 @@
     "build": "npm run build --workspaces --if-present",
     "verificar-dist": "node scripts/verificar-dist.mjs",
     "figuras": "node scripts/gerar-figuras.mjs",
-    "ci": "npm run typecheck && npm test && npm run build && npm run verificar-dist && npm run figuras",
+    "ci": "npm run typecheck && npm test && npm run build && npm run verificar-dist && npm run figuras && npm run app:build",
     "demo": "vite --config demo/vite.config.ts",
-    "demo:build": "vite build --config demo/vite.config.ts"
+    "demo:build": "vite build --config demo/vite.config.ts",
+    "app": "vite --config app/vite.config.ts",
+    "app:build": "vite build --config app/vite.config.ts"
   },
   "engines": {
     "node": ">=22"

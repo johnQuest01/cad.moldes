@@ -78,3 +78,15 @@ export {
   type OpcoesDeMover,
   type OpcoesDePique,
 } from './ferramentas.js';
+
+export {
+  montarCena,
+  larguraNoMundo,
+  ESPESSURA_PX,
+  RAIO_DA_ALCA_PX,
+  RAIO_DO_VERTICE_PX,
+  type Comando,
+  type Estilo,
+  type Tinta,
+  type OpcoesDaCena,
+} from './desenho.js';

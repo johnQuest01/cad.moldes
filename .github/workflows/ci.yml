@@ -48,8 +48,10 @@ jobs:
       - name: Figuras da documentacao
         run: node scripts/gerar-figuras.mjs
 
-      # A demo importa o motor pelo FONTE e e a unica coisa aqui que roda no
-      # navegador: se uma assinatura do motor mudar, ela quebra no build, nao na
-      # mao de quem abrir a pagina.
+      # A demo e o editor importam o motor pelo FONTE: se uma assinatura mudar,
+      # eles quebram no build, e nao na mao de quem abrir a pagina.
       - name: Demonstracao
         run: npm run demo:build
+
+      - name: Editor
+        run: npm run app:build

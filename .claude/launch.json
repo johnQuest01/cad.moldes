@@ -2,9 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "editor",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "app"],
+      "port": 5200
+    },
+    {
       "name": "demo",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "demo", "--", "--port", "5199", "--strictPort"],
+      "runtimeArgs": ["run", "demo"],
       "port": 5199
     }
   ]
