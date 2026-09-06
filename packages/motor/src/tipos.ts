@@ -202,6 +202,27 @@ export interface Material {
   readonly modo: ModoTecido;
 }
 
+/**
+ * O PAPEL do plotter. Nao confundir com `Material`, que e o TECIDO.
+ *
+ * Sao duas larguras diferentes e as duas mandam em coisas diferentes: a do tecido
+ * limita o encaixe (Fase 5), a do papel limita o que da para IMPRIMIR. Um ateliê
+ * com rolo de papel de 1,60 m e tecido de 1,50 m tem as duas, e elas nao se
+ * substituem.
+ *
+ * Larguras de rolo praticadas na modelagem: 90 cm, 1,60 m e 1,80 m, comprimento
+ * continuo. A `margemDeSegurancaUM` e a faixa em cada borda que a plotadora nao
+ * alcanca — nenhuma imprime ate o fio do papel.
+ */
+export interface Papel {
+  readonly id: Id;
+  readonly nome: string;
+  /** Largura do rolo, de borda a borda. */
+  readonly larguraUM: UM;
+  /** Faixa perdida em CADA borda. A largura util e `largura - 2 x margem`. */
+  readonly margemDeSegurancaUM: UM;
+}
+
 /** Marca um ponto do contorno como graduavel. */
 export interface PontoGraduacao {
   readonly id: Id;
@@ -272,6 +293,8 @@ export interface Modelo {
   readonly paresCostura: Readonly<Record<Id, ParCostura>>;
   readonly regrasGraduacao: Readonly<Record<Id, RegraGraduacao>>;
   readonly materiais: Readonly<Record<Id, Material>>;
+  /** O papel do plotter. `null` enquanto ninguem declarou qual rolo a casa usa. */
+  readonly papel: Papel | null;
 }
 
 /** Anel fechado de pontos, CCW, sem repetir o primeiro ponto no fim. */

@@ -633,3 +633,93 @@ describe('contemPonto — dentro, fora e em cima da borda', () => {
     expect(contemPonto(curva, alvo)).toBe(true);
   });
 });
+
+// ===========================================================================
+// 8. O papel do plotter — a restricao que nao existia
+// ===========================================================================
+
+describe('O papel do plotter: a peca cabe no rolo?', () => {
+  /** Larguras de rolo praticadas na modelagem. Margem de 10 mm em cada borda. */
+  const ROLOS = [
+    ['90 cm', 900 * MM],
+    ['1,60 m', 1600 * MM],
+  ] as const;
+
+  const comPapel = (larguraUM: number, largura: number, altura: number): Modelo =>
+    reconstruir([
+      ...logRetangulo({ larguraMM: largura, alturaMM: altura, margensMM: [10, 10, 10, 10] }),
+      evt(
+        'DefinirPapel',
+        { papelId: 'pl-1', nome: 'rolo', larguraUM, margemDeSegurancaUM: 10 * MM },
+        null,
+      ),
+    ]);
+
+  const so = (m: Modelo, codigo: string) => validarModelo(m).filter((p) => p.codigo === codigo);
+
+  it('sem papel declarado, o validador nao da palpite', () => {
+    const semPapel = reconstruir(
+      logRetangulo({ larguraMM: 3000, alturaMM: 200, margensMM: [10, 10, 10, 10] }),
+    );
+    console.log('--- sem papel ---');
+    console.log(`peca de 3 m, sem rolo declarado -> papel = ${String(semPapel.papel)}`);
+    expect(semPapel.papel).toBeNull();
+    expect(so(semPapel, 'PECA_MAIS_LARGA_QUE_O_PAPEL')).toHaveLength(0);
+  });
+
+  it('a que cabe passa; a que nao cabe de jeito nenhum e ERRO', () => {
+    console.log('--- cabe no rolo? (linha de CORTE, util = rolo - 2 x 10 mm) ---');
+    for (const [nome, larguraUM] of ROLOS) {
+      const util = umParaMM(larguraUM - 20 * MM);
+      const pequena = comPapel(larguraUM, 100, 200);
+      const enorme = comPapel(larguraUM, umParaMM(larguraUM), umParaMM(larguraUM));
+      console.log(
+        `${nome.padEnd(7)} (util ${util} mm): corte de 120 mm -> ` +
+          `${so(pequena, 'PECA_MAIS_LARGA_QUE_O_PAPEL').length} erro | ` +
+          `corte de ${util + 40} mm -> ${so(enorme, 'PECA_MAIS_LARGA_QUE_O_PAPEL').length} erro`,
+      );
+      expect(so(pequena, 'PECA_MAIS_LARGA_QUE_O_PAPEL')).toHaveLength(0);
+      expect(so(enorme, 'PECA_MAIS_LARGA_QUE_O_PAPEL')).toHaveLength(1);
+    }
+  });
+
+  it('a que so cabe DEITADA e aviso — girar no papel e livre, no tecido nao', () => {
+    const deitada = comPapel(900 * MM, 900, 300);
+    const avisos = so(deitada, 'PECA_SO_CABE_GIRADA');
+    const erros = so(deitada, 'PECA_MAIS_LARGA_QUE_O_PAPEL');
+    console.log('--- so cabe deitada ---');
+    console.log(
+      `rolo de 900 mm (util 880) | corte de 920 x 320 mm -> ` +
+        `${erros.length} erro, ${avisos.length} aviso [${avisos[0]?.gravidade}] ${avisos[0]?.codigo}`,
+    );
+    expect(erros).toHaveLength(0);
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0]!.gravidade).toBe('aviso');
+  });
+
+  it('a MARGEM DE COSTURA conta: e a linha de corte que vai para o papel', () => {
+    const noLimite = comPapel(900 * MM, 870, 200);
+    const erros = so(noLimite, 'PECA_MAIS_LARGA_QUE_O_PAPEL');
+    const avisos = so(noLimite, 'PECA_SO_CABE_GIRADA');
+    console.log(
+      `costura de 870 mm cabe nos 880 uteis, mas o CORTE tem 890 -> ` +
+        `${erros.length + avisos.length} problema(s): ${[...erros, ...avisos][0]?.codigo}`,
+    );
+    expect(erros.length + avisos.length).toBe(1);
+  });
+
+  it('rolo invalido e recusado no fold', () => {
+    const codigo = codigoDoErro(() =>
+      reconstruir([
+        ...base(),
+        evt(
+          'DefinirPapel',
+          { papelId: 'pl-x', nome: 'ruim', larguraUM: 100 * MM, margemDeSegurancaUM: 60 * MM },
+          null,
+        ),
+      ]),
+    );
+    console.log(`rolo de 100 mm com 60 mm de margem em cada borda -> ${codigo}`);
+    expect(codigo).toBe('PAPEL_INVALIDO');
+  });
+});

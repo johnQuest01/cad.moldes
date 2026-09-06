@@ -350,6 +350,20 @@ export type DefinirEncaixe = Envelope<
   }
 >;
 
+/**
+ * Declara o rolo de papel do plotter. Vive no MODELO (`pecaId` null): o rolo e da
+ * casa, nao da peca.
+ */
+export type DefinirPapel = Envelope<
+  'DefinirPapel',
+  {
+    readonly papelId: Id;
+    readonly nome: string;
+    readonly larguraUM: UM;
+    readonly margemDeSegurancaUM: UM;
+  }
+>;
+
 /** Tira a peca do modelo. `ParCostura` que apontava para ela fica, e a conferencia acusa. */
 export type RemoverPeca = Envelope<'RemoverPeca', Record<string, never>>;
 
@@ -471,6 +485,7 @@ export type Evento =
   | DividirPeca
   | AbrirPregas
   | DefinirEncaixe
+  | DefinirPapel
   | RemoverPeca
   | RemoverLinhaInterna
   | RemoverRecorte

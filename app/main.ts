@@ -122,6 +122,19 @@ function atualizarPaineis(): void {
     ['Peças', String(editor.cena.pecas.length)],
     ['Piques', String(Object.keys(peca.piques).length)],
   ];
+
+  // Largura de CORTE contra a util do papel: e ela que vai para o plotter.
+  const corte = editor.cena.derivados(PECA).corte;
+  if (corte.length > 0) {
+    const largura = Math.max(...corte.map((p) => p.x)) - Math.min(...corte.map((p) => p.x));
+    const papel = editor.cena.modelo.papel;
+    linhas.push([
+      'Largura do corte',
+      papel === null
+        ? `${mm(largura)} mm`
+        : `${mm(largura)} / ${mm(papel.larguraUM - 2 * papel.margemDeSegurancaUM)} mm`,
+    ]);
+  }
   for (const aresta of ARESTAS) {
     if (peca.arestas[aresta.id] === undefined) continue;
     linhas.push([aresta.nome, `${mm(medirAresta(peca, aresta.id))} mm`]);
@@ -285,6 +298,27 @@ em('#camadas').addEventListener('change', (ev) => {
   estado.encaixe = (ev.target as HTMLInputElement).checked;
   redesenhar();
 });
+
+// Papel do plotter. O rolo e da casa, entao e evento de MODELO (pecaId null).
+const MARGEM_DO_PLOTTER_MM = 10;
+function aplicarPapel(larguraMM: number): void {
+  sessao.aplicar({
+    tipo: 'DefinirPapel',
+    pecaId: null,
+    payload: {
+      papelId: 'papel',
+      nome: `${larguraMM} mm`,
+      larguraUM: Math.round(larguraMM * MM),
+      margemDeSegurancaUM: Math.round(MARGEM_DO_PLOTTER_MM * MM),
+    },
+  });
+  em('#valor-util').textContent = `${larguraMM - 2 * MARGEM_DO_PLOTTER_MM} mm úteis`;
+}
+(em('#papel') as HTMLSelectElement).addEventListener('change', (ev) => {
+  aplicarPapel(Number((ev.target as HTMLSelectElement).value));
+  redesenhar();
+});
+aplicarPapel(Number((em('#papel') as HTMLSelectElement).value));
 
 // Entrada numerica (E10): o valor digitado ganha do ultimo pixel.
 em('#exato').addEventListener('submit', (ev) => {

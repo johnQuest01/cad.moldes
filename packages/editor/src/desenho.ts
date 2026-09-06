@@ -24,6 +24,7 @@ import {
   offsetMargem,
   projetarPique,
   type Id,
+  type Papel,
   type Peca,
   type PiqueProjetado,
   type Vetor2,
@@ -122,6 +123,7 @@ export function montarCena(editor: Editor, opcoes: OpcoesDaCena = {}): Comando[]
   const vista = camera.vista;
 
   if (camadas.visivel('grade')) comandos.push(...grade(vista));
+  if (camadas.visivel('grade')) comandos.push(...limiteDoPapel(cena.modelo.papel, vista));
 
   const selecionados = new Set(selecao.itens.map(chaveDa));
   const previa = editor.previsualizacao;
@@ -315,6 +317,41 @@ function derivarParaODesenho(peca: Peca, ultimoBom: ParaODesenho): ParaODesenho 
         };
 
   return { contorno, corte, piques, caixa };
+}
+
+/**
+ * As duas bordas uteis do rolo do plotter.
+ *
+ * A largura util e `largura - 2 x margem de seguranca` — nenhuma plotadora imprime
+ * ate o fio do papel. Peca que cruza essas linhas nao sai inteira, e ver isso
+ * enquanto se desenha vale mais que descobrir na hora de plotar.
+ */
+function limiteDoPapel(papel: Papel | null, vista: Caixa): Comando[] {
+  if (papel === null) return [];
+  const util = papel.larguraUM - 2 * papel.margemDeSegurancaUM;
+  const estilo: Estilo = { cor: 'fraco', espessuraPx: 1, tracejado: true };
+  const linha = (x: number): Comando => ({
+    forma: 'linha',
+    camada: 'grade',
+    pontos: [
+      { x, y: vista.minY },
+      { x, y: vista.maxY },
+    ],
+    fechada: false,
+    estilo,
+  });
+  return [
+    linha(0),
+    linha(util),
+    {
+      forma: 'texto',
+      camada: 'texto',
+      em: { x: util, y: vista.maxY },
+      conteudo: `papel ${papel.nome} · ${(util / MM).toFixed(0)} mm úteis`,
+      tamanhoPx: 11,
+      cor: 'fraco',
+    },
+  ];
 }
 
 /** Papel quadriculado de 5 cm, so na parte visivel. */

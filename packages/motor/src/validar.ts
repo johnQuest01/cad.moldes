@@ -27,6 +27,7 @@ import { area } from './geometria/anel.js';
 import { anelDoContorno } from './geometria/anel.js';
 import { segmentosDaAresta } from './geometria/aresta.js';
 import { validarCasamento } from './conferencia.js';
+import { offsetMargem } from './offset.js';
 
 /**
  * Fracao de area em que a uniao pode diferir do shoelace sem ser considerada
@@ -75,7 +76,58 @@ export function validarModelo(modelo: Modelo): Problema[] {
   }
   problemas.push(...comoProblemas(() => validarCasamento(modelo)));
   conferirReferenciasDoModelo(modelo, problemas);
+  conferirPapel(modelo, problemas);
   return problemas;
+}
+
+/**
+ * A peca cabe no rolo do plotter?
+ *
+ * Quem tem que caber e a LINHA DE CORTE, nao a de costura: e ela que vai para o
+ * papel. E a largura util e `largura - 2 x margem de seguranca`, porque nenhuma
+ * plotadora imprime ate o fio do papel.
+ *
+ * Uma peca que nao cabe de pe mas cabe DEITADA e aviso, nao erro: girar o molde
+ * no papel e livre — o que nao e livre e girar no tecido, que tem fio. Sao duas
+ * rotacoes diferentes, e quem decide se pode girar no papel e o modelista.
+ *
+ * Sem papel declarado, nao ha o que conferir: quem nao disse qual rolo usa nao
+ * recebe palpite.
+ */
+function conferirPapel(modelo: Modelo, problemas: Problema[]): void {
+  const papel = modelo.papel;
+  if (papel === null) return;
+  const util = papel.larguraUM - 2 * papel.margemDeSegurancaUM;
+
+  for (const peca of Object.values(modelo.pecas)) {
+    let corte: readonly Vetor2[];
+    try {
+      corte = offsetMargem(peca).pontos;
+    } catch (erro) {
+      // Peca que nem gera linha de corte ja esta sendo acusada por outra
+      // checagem; nao vale acusar duas vezes pelo mesmo defeito.
+      if (!(erro instanceof ErroMotor)) throw erro;
+      continue;
+    }
+
+    const largura = Math.max(...corte.map((p) => p.x)) - Math.min(...corte.map((p) => p.x));
+    const altura = Math.max(...corte.map((p) => p.y)) - Math.min(...corte.map((p) => p.y));
+    if (largura <= util) continue;
+
+    const cabeGirada = altura <= util;
+    problemas.push({
+      gravidade: cabeGirada ? 'aviso' : 'erro',
+      codigo: cabeGirada ? 'PECA_SO_CABE_GIRADA' : 'PECA_MAIS_LARGA_QUE_O_PAPEL',
+      mensagem: cabeGirada
+        ? `A peca "${peca.metadados.nome}" tem ${largura} UM de largura de corte e nao cabe ` +
+          `nos ${util} UM uteis do papel "${papel.nome}" — mas cabe DEITADA ` +
+          `(${altura} UM). Girar no papel e livre; girar no tecido nao e.`
+        : `A peca "${peca.metadados.nome}" mede ${largura} x ${altura} UM na linha de corte e ` +
+          `nao cabe nos ${util} UM uteis do papel "${papel.nome}" em nenhuma direcao. ` +
+          `Ela nao tem como ser plotada inteira.`,
+      pecaId: peca.id,
+    });
+  }
 }
 
 /**

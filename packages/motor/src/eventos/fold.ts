@@ -70,6 +70,7 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       paresCostura: {},
       regrasGraduacao: {},
       materiais: {},
+      papel: null,
     };
   }
 
@@ -556,6 +557,21 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
       const { eixoIds, prefixoId } = evento.payload;
       return comPeca(modelo, abrirPregas(peca, [...eixoIds], prefixoId));
+    }
+
+    case 'DefinirPapel': {
+      const { papelId, nome, larguraUM, margemDeSegurancaUM } = evento.payload;
+      exigir(
+        larguraUM > 0 && margemDeSegurancaUM >= 0 && 2 * margemDeSegurancaUM < larguraUM,
+        'PAPEL_INVALIDO',
+        `O papel "${nome}" tem ${larguraUM} UM de largura e ${margemDeSegurancaUM} UM de ` +
+          `margem em cada borda: nao sobra largura util para imprimir nada.`,
+        { eventoId: evento.id, papelId },
+      );
+      return {
+        ...modelo,
+        papel: { id: papelId, nome, larguraUM, margemDeSegurancaUM },
+      };
     }
 
     case 'DefinirEncaixe': {
