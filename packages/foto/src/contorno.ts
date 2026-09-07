@@ -345,3 +345,25 @@ export function ajustarCurvas(
   }
   return trechos;
 }
+
+/**
+ * Garante que o anel esteja em **CCW** — a orientação que a decisão D9 exige.
+ *
+ * Aqui não se deduz, **mede-se**. O passeio de Moore anda num sentido no espaço da
+ * IMAGEM, e a homografia inverte o Y ao levar para o mundo; raciocinar sobre a
+ * composição de dois espelhamentos é a receita clássica de errar o sinal com toda a
+ * confiança do mundo. Foi o que aconteceu: o contorno saía em CW e o
+ * `offsetMargem` recusava a peça inteira — em CW o delta positivo aponta para
+ * DENTRO, e o molde sairia menor que o desenho.
+ *
+ * Medir a área com sinal custa uma passada e não depende de raciocínio nenhum.
+ */
+export function garantirCCW(anel: readonly Vetor2[]): Vetor2[] {
+  let dobro = 0;
+  for (let i = 0; i < anel.length; i++) {
+    const a = anel[i]!;
+    const b = anel[(i + 1) % anel.length]!;
+    dobro += a.x * b.y - b.x * a.y;
+  }
+  return dobro < 0 ? [...anel].reverse() : [...anel];
+}

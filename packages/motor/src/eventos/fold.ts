@@ -652,6 +652,12 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       return comPeca(modelo, { ...peca, metadados });
     }
 
+    case 'DigitalizarPorFoto': {
+      // Procedência: não muda o estado. O log é a resposta, e a resposta fica no
+      // log mesmo que o modelo não guarde nada disso.
+      return modelo;
+    }
+
     default: {
       const naoTratado: never = evento;
       throw new ErroMotor(

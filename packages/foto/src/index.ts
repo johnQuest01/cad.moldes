@@ -63,6 +63,7 @@ export {
 export {
   FUNDO_TIPICO_DO_PIQUE_UM,
   ajustarCurvas,
+  garantirCCW,
   detectarCantos,
   detectarPiques,
   removerPiques,
@@ -71,3 +72,11 @@ export {
   type Pique,
   type TrechoAjustado,
 } from './contorno.js';
+
+export {
+  digitalizar,
+  somaDaImagem,
+  type Digitalizacao,
+  type OpcoesDeDigitalizacao,
+  type PecaDigitalizada,
+} from './digitalizar.js';

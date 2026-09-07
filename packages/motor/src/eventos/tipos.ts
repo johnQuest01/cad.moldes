@@ -146,6 +146,34 @@ export type DefinirMetadados = Envelope<
 >;
 
 /**
+ * Registra que as peças a seguir vieram de uma FOTO, e sob quais condições.
+ *
+ * Não muda o estado — é procedência. Existe porque daqui a dois anos alguém vai
+ * perguntar por que aquela cava tem 3 mm a mais, e a resposta tem que estar no log,
+ * não na memória de quem tirou a foto.
+ *
+ * O que ele guarda é o que determina a qualidade do resultado: qual quadro de
+ * calibração foi usado, que foto era (por soma de verificação), quantos micrômetros
+ * valia um pixel, o quanto o quadro fechou, e com que tolerância o contorno foi
+ * simplificado. Um molde digitalizado a 1400 UM por pixel e outro a 350 são coisas
+ * diferentes, e o log tem que saber distinguir.
+ */
+export type DigitalizarPorFoto = Envelope<
+  'DigitalizarPorFoto',
+  {
+    readonly calibracaoId: Id;
+    /** Soma de verificação da imagem. Identifica a foto, não a autentica. */
+    readonly imagemSoma: string;
+    readonly larguraPx: number;
+    readonly alturaPx: number;
+    readonly umPorPixel: UM;
+    /** Pior desvio de uma marca à reta do lado dela, em UM. */
+    readonly residuoDoQuadroUM: UM;
+    readonly toleranciaUM: UM;
+  }
+>;
+
+/**
  * Move um ponto por DELTA, com ou sem arrasto dos vizinhos (Parte 3, operacao 9).
  * O `MoverPonto` acima e coordenada absoluta; este e a edicao do modelista.
  *
@@ -474,6 +502,7 @@ export type Evento =
   | DefinirMargem
   | DefinirParCostura
   | DefinirMetadados
+  | DigitalizarPorFoto
   | ModificarPonto
   | AdicionarLinhaInterna
   | AdicionarRecorte

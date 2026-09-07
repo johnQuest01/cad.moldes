@@ -155,6 +155,7 @@ export type {
   DefinirMargem,
   DefinirParCostura,
   DefinirMetadados,
+  DigitalizarPorFoto,
   ModificarPonto,
   AdicionarLinhaInterna,
   AdicionarRecorte,
