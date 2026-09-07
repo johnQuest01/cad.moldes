@@ -12,3 +12,11 @@ export {
   type ResultadoDeFerramenta,
   type Turno,
 } from './provedores.js';
+export {
+  SEM_LICENCA,
+  TOLERANCIA_DE_FORMA,
+  conferirIntegridade,
+  impressaoDoModelo,
+  type Impressao,
+  type Licenca,
+} from './integridade.js';

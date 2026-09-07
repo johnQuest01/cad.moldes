@@ -43,8 +43,11 @@ import {
   INSTRUCOES,
   PROVEDORES,
   acharFerramenta,
+  SEM_LICENCA,
   acharProvedor,
+  conferirIntegridade,
   contextoEmTexto,
+  impressaoDoModelo,
   type Provedor,
   type Resposta,
   type Resultado,
@@ -994,17 +997,55 @@ const provedorAtual = (): Provedor =>
   acharProvedor(globalThis.localStorage.getItem(CHAVE_PROVEDOR) ?? 'anthropic') ?? PROVEDORES[0]!;
 
 /** Executa o que a ferramenta devolveu, e diz ao modelo o que aconteceu. */
+/** A ferramenta que esta sendo executada — e a licenca dela que a guarda usa. */
+let ferramentaAtual: { licenca?: typeof SEM_LICENCA } | null = null;
+
 function executarResultado(r: Resultado): { texto: string; falhou: boolean } {
-  const aplicar = (gestos: readonly { tipo: string; pecaId: string | null; payload: unknown }[], resumo: string) => {
+  const aplicar = (
+    gestos: readonly { tipo: string; pecaId: string | null; payload: unknown }[],
+    resumo: string,
+  ) => {
+    // A impressão digital de cada peça ANTES: é com ela que se prova, depois, que a
+    // IA não adulterou molde para caber melhor no tecido.
+    const antes = impressaoDoModelo(sessao.modelo);
+    const nomes = Object.fromEntries(
+      Object.entries(sessao.modelo.pecas).map(([id, p]) => [id, p.metadados.nome]),
+    );
+
     try {
       sessao.aplicar(...gestos);
-      editor.selecao.podar(editor.cena);
-      redesenhar();
-      return { texto: `Feito. ${resumo}`, falhou: false };
     } catch (e) {
       // A mensagem do motor volta INTEIRA: é ela que ensina o modelo a corrigir.
       return { texto: `O motor recusou: ${String(e)}`, falhou: true };
     }
+
+    // A GUARDA. Se a ação mudou a FORMA de alguma peça sem ter licença para isso,
+    // ela é DESFEITA — não avisada e mantida.
+    //
+    // "Otimize o espaço" tem, para um modelo de linguagem, uma saída tentadora e
+    // catastrófica: encolher a peça. Cortar 5 mm da cava economiza tecido e a roupa
+    // não fecha. Instrução no prompt é pedido; o que impede é invariante.
+    const violacoes = conferirIntegridade(
+      antes,
+      impressaoDoModelo(sessao.modelo),
+      ferramentaAtual?.licenca ?? SEM_LICENCA,
+      nomes,
+    );
+    if (violacoes.length > 0) {
+      sessao.desfazer();
+      editor.selecao.podar(editor.cena);
+      redesenhar();
+      return {
+        texto:
+          `RECUSADO e desfeito. ${violacoes.join(' ')} ` +
+          `Molde não se altera para caber no tecido: quem decide forma é a pessoa.`,
+        falhou: true,
+      };
+    }
+
+    editor.selecao.podar(editor.cena);
+    redesenhar();
+    return { texto: `Feito. ${resumo}`, falhou: false };
   };
 
   switch (r.tipo) {
@@ -1227,7 +1268,9 @@ async function rodada(chave: string): Promise<void> {
         anotarFerramenta(`${c.nome} — não existe`, true);
         return { id: c.id, nome: c.nome, texto: `Não existe a ferramenta "${c.nome}".`, falhou: true };
       }
+      ferramentaAtual = ferramenta;
       const saida = executarResultado(ferramenta.executar(sessao.modelo, c.argumentos));
+      ferramentaAtual = null;
       anotarFerramenta(`${c.nome}: ${saida.texto.split('\n')[0]}`, saida.falhou);
       return { id: c.id, nome: c.nome, texto: saida.texto, falhou: saida.falhou };
     });

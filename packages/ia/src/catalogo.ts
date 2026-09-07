@@ -188,6 +188,7 @@ const renomear: Ferramenta = {
 
 const duplicar: Ferramenta = {
   nome: 'duplicar_peca',
+  licenca: { alteraForma: false, criaPeca: true, removePeca: false },
   descricao:
     'Cria uma cópia independente da peça, deslocada para o lado. A cópia tem ids próprios ' +
     'e pode ser editada sem mexer na original.',
@@ -207,6 +208,7 @@ const duplicar: Ferramenta = {
 
 const remover: Ferramenta = {
   nome: 'remover_peca',
+  licenca: { alteraForma: false, criaPeca: false, removePeca: true },
   descricao:
     'Apaga uma peça do modelo. DESTRUTIVO: devolve um pedido de confirmação, e a pessoa ' +
     'é quem decide. Nunca chame isto para "limpar" sem a pessoa ter pedido.',
@@ -320,6 +322,8 @@ const encaixeDaPeca: Ferramenta = {
 
 const simplificar: Ferramenta = {
   nome: 'simplificar_contorno',
+  // A UNICA ferramenta que pode mexer no desenho — e ela pede confirmacao humana.
+  licenca: { alteraForma: true, criaPeca: false, removePeca: false },
   descricao:
     'Reduz os pontos do contorno com tolerância explícita em MILÍMETROS. Serve para molde ' +
     'digitalizado ou importado, que vem com pontos demais. DESTRUTIVO: pede confirmação, ' +

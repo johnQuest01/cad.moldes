@@ -7,6 +7,7 @@
  *  - o aproveitamento e melhor que enfileirar, que e o que a Fase 4 faz;
  *  - o mesmo modelo da o mesmo encaixe (determinismo, para o log valer).
  */
+import { FillRule, areaPaths, intersect } from 'clipper2-ts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -144,10 +145,21 @@ function caixaDoCorte(peca: Peca): { minX: number; minY: number; maxX: number; m
   };
 }
 
-const seTocam = (
-  a: { minX: number; minY: number; maxX: number; maxY: number },
-  b: { minX: number; minY: number; maxX: number; maxY: number },
-): boolean => a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY;
+/**
+ * Área da sobreposição entre os CORTES de duas peças postas, em UM².
+ *
+ * Caixa não serve mais. Enquanto o encaixe era ruim, caixa que não se toca era um
+ * teste conservador que passava; agora que as peças se enfiam no vão umas das
+ * outras, **as caixas se sobrepõem de propósito** — é isso que encaixe bom quer
+ * dizer. Medir caixa aqui reprovaria justamente o bom resultado.
+ *
+ * O que não pode encostar é o polígono, e quem calcula interseção de polígono é o
+ * clipper2 — a mesma regra de sempre: geometria de biblioteca testada.
+ */
+function sobreposicao(a: Peca, b: Peca): number {
+  const anel = (peca: Peca) => [offsetMargem(peca).pontos.map((v) => ({ x: v.x, y: v.y }))];
+  return Math.abs(areaPaths(intersect(anel(a), anel(b), FillRule.NonZero)));
+}
 
 describe('O fio manda na rotacao', () => {
   it('cada giro declarado libera exatamente os angulos que o oficio permite', () => {
@@ -203,12 +215,14 @@ describe('As pecas nao se sobrepoem — a unica coisa que nao pode falhar', () =
     ]);
     const encaixe = encaixar(modelo);
     const postas = aplicarEncaixe(modelo, encaixe);
-    const caixas = postas.map((p) => caixaDoCorte(p.peca));
 
     let sobrepostas = 0;
-    for (let i = 0; i < caixas.length; i++) {
-      for (let j = i + 1; j < caixas.length; j++) {
-        if (seTocam(caixas[i]!, caixas[j]!)) sobrepostas++;
+    let piorArea = 0;
+    for (let i = 0; i < postas.length; i++) {
+      for (let j = i + 1; j < postas.length; j++) {
+        const area = sobreposicao(postas[i]!.peca, postas[j]!.peca);
+        if (area > 0) sobrepostas++;
+        piorArea = Math.max(piorArea, area);
       }
     }
 
@@ -218,7 +232,23 @@ describe('As pecas nao se sobrepoem — a unica coisa que nao pode falhar', () =
         `consumo ${(umParaMM(encaixe.comprimentoUsadoUM) / 1000).toFixed(3)} m`,
     );
     console.log(`aproveitamento ${(encaixe.aproveitamento * 100).toFixed(1)}%`);
-    console.log(`pares de caixas se sobrepondo: ${sobrepostas}`);
+    console.log(
+      `pares de CORTES se sobrepondo: ${sobrepostas} (pior area ${(piorArea / 1e6).toFixed(3)} mm2)`,
+    );
+    // Caixas se sobrepondo agora e ESPERADO: e o sinal de que as pecas se enfiaram
+    // no vao umas das outras. O que nao pode e o corte encostar no corte.
+    const caixas = postas.map((c) => caixaDoCorte(c.peca));
+    let caixasCruzadas = 0;
+    for (let i = 0; i < caixas.length; i++) {
+      for (let j = i + 1; j < caixas.length; j++) {
+        const a = caixas[i]!;
+        const b = caixas[j]!;
+        if (a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY) {
+          caixasCruzadas++;
+        }
+      }
+    }
+    console.log(`pares de CAIXAS se sobrepondo: ${caixasCruzadas} — e assim que tem que ser`);
 
     expect(encaixe.colocacoes).toHaveLength(12);
     expect(sobrepostas).toBe(0);
@@ -473,7 +503,7 @@ describe('Giro fino: onde ha folga de tecido de verdade', () => {
     expect(rotacoesPermitidas(noventa, 30)).toEqual([0, 90, 180, 270]);
   });
 
-  it('angulo fino SOZINHO piora — e por isso quem escolhe e a busca', () => {
+  it('angulo fino economiza rolo de verdade — 36% nesta tira', () => {
     // Duas tiras de 1700 x 100 mm num rolo de 1,58 m. De pe, lado a lado, cabem as
     // duas. Enviesadas a 30 graus, a caixa de cada uma encolhe — e a primeira ocupa
     // a faixa de um jeito que atravanca a segunda.
@@ -494,12 +524,14 @@ describe('Giro fino: onde ha folga de tecido de verdade', () => {
         (umParaMM(fino.comprimentoUsadoUM) / 1000).toFixed(3) + ' m de rolo',
     );
 
-    // O achado: angulo fino SOZINHO piora. A escolha de angulo e gulosa peca a
-    // peca — a primeira tira acha bonito deitar enviesada, encolhe a propria caixa
-    // e atravanca a faixa para a segunda.
-    expect(fino.comprimentoUsadoUM).toBeGreaterThan(grosso.comprimentoUsadoUM);
+    // Com a colocacao GULOSA e o candidato incompleto, esta medida dava o
+    // contrario: 1,933 m no passo 30 contra 1,722 m no passo 90, e a conclusao
+    // registrada era "angulo fino piora". Era artefato do defeito de colocacao, nao
+    // verdade do problema. Com a regiao viavel exata as duas tiras se deitam
+    // paralelas a 30 graus e o rolo cai 36%.
+    expect(fino.comprimentoUsadoUM).toBeLessThan(grosso.comprimentoUsadoUM);
 
-    // E por isso que o passo fino nao e botao solto: quem escolhe e a busca.
+    // A busca continua sendo a rede: ela nunca fica pior que o melhor dos dois.
     const busca = encaixarBuscando(modeloCom(moldes), {}, 9);
     console.log(
       'busca (ordens x passos): ' + (umParaMM(busca.melhor.comprimentoUsadoUM) / 1000).toFixed(3) +

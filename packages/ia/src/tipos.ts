@@ -49,6 +49,8 @@
 import type { Gesto } from '@cad/editor';
 import type { Modelo } from '@cad/motor';
 
+import type { Licenca } from './integridade.js';
+
 /** O que uma ferramenta devolve. A interface é quem executa. */
 export type Resultado =
   | {
@@ -81,6 +83,14 @@ export interface Esquema {
 }
 
 export interface Ferramenta {
+  /**
+   * O que esta ferramenta tem permissao de fazer com a FORMA das pecas.
+   *
+   * Ausente quer dizer NADA: nao mexe no desenho, nao cria e nao apaga peca. E o
+   * padrao de proposito — quem precisa de licenca declara, e quem declara aparece
+   * numa lista de tres itens que da para ler de uma vez.
+   */
+  readonly licenca?: Licenca;
   readonly nome: string;
   /** Em português, e específica: é o que o modelo lê para decidir se usa. */
   readonly descricao: string;

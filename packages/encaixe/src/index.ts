@@ -30,8 +30,11 @@ import {
   EndType,
   FillRule,
   JoinType,
+  areaPaths,
+  difference,
   inflatePaths,
   minkowskiDiff,
+  ramerDouglasPeucker,
   union,
   type Path64,
   type Paths64,
@@ -44,7 +47,6 @@ import {
   offsetMargem,
   rotacionarPeca,
   espelharPeca,
-  simplificarContorno,
   transladarPeca,
   type Id,
   type Modelo,
@@ -73,8 +75,20 @@ export interface Colocacao {
   readonly pecaId: Id;
   /** Qual cópia desta peça (uma peça pode ir 2, 4 vezes no molde). */
   readonly copia: number;
+  /** Canto inferior esquerdo da peça na faixa, em UM. É o número do relatório. */
   readonly x: number;
   readonly y: number;
+  /**
+   * O deslocamento a aplicar na peça depois de espelhar e girar, em UM.
+   *
+   * Existe separado de `x`/`y` porque o encaixe raciocina sobre o contorno
+   * **simplificado e inflado**, e a peça que vai para a tela é a de verdade. Os
+   * dois têm cantos diferentes, e quem aplica o encaixe não pode redescobrir o
+   * canto refazendo a conta: um fio de diferença ali vira peça sobreposta, e peça
+   * sobreposta é tecido cortado errado.
+   */
+  readonly dx: number;
+  readonly dy: number;
   readonly rotacaoGraus: number;
   readonly espelhada: boolean;
 }
@@ -191,7 +205,46 @@ export function encaixar(modelo: Modelo, opcoes: OpcoesDeEncaixe = {}): Encaixe 
     problemas,
     opcoes.passoDeGiroGraus ?? 90,
   );
-  const semente = opcoes.semente ?? 0;
+  return colocar(candidatas, util, problemas, opcoes.semente ?? 0);
+}
+
+/**
+ * A parte CARA: girar, simplificar, deslocar a margem e inflar cada peça em cada
+ * ângulo permitido.
+ *
+ * Fica separada da colocação porque não depende da ordem. A busca por uma ordem
+ * melhor roda a colocação dezenas de vezes, e recalcular as formas em cada uma
+ * custava minutos — medido: 24 tentativas nas 11 peças reais não terminaram em
+ * dez minutos. Preparando uma vez e colocando muitas, o custo da busca passa a ser
+ * o da parte barata.
+ */
+export function prepararEncaixe(
+  modelo: Modelo,
+  opcoes: OpcoesDeEncaixe = {},
+): { candidatas: Candidata[]; util: number | null; problemas: Problema[] } {
+  const problemas: Problema[] = [];
+  const util = opcoes.larguraUtilUM ?? larguraDoPapel(modelo);
+  if (util === null) return { candidatas: [], util: null, problemas };
+  const candidatas = montarCandidatas(
+    modelo,
+    opcoes.tamanho ?? modelo.tamanhoBase,
+    Math.max(1, opcoes.conjuntos ?? 1),
+    opcoes.folgaUM ?? FOLGA_PADRAO_UM,
+    problemas,
+    opcoes.passoDeGiroGraus ?? 90,
+  );
+  return { candidatas, util, problemas };
+}
+
+/** A parte BARATA: decidir a ordem e ir colocando. */
+function colocar(
+  candidatasOriginais: readonly Candidata[],
+  util: number,
+  problemasDeEntrada: readonly Problema[],
+  semente: number,
+): Encaixe {
+  const problemas: Problema[] = [...problemasDeEntrada];
+  const candidatas = [...candidatasOriginais];
   if (semente === 0) {
     // Maior primeiro: e a heuristica classica do bottom-left, e a que da o melhor
     // aproveitamento sem busca. O desempate por id mantem o resultado deterministico.
@@ -223,7 +276,7 @@ export function encaixar(modelo: Modelo, opcoes: OpcoesDeEncaixe = {}): Encaixe 
   let comprimento = 0;
 
   for (const candidata of candidatas) {
-    const escolha = melhorPosicao(candidata, postas, util);
+    const escolha = melhorPosicao(candidata, postas, util, comprimento);
     if (escolha === null) {
       problemas.push({
         gravidade: 'erro',
@@ -242,6 +295,8 @@ export function encaixar(modelo: Modelo, opcoes: OpcoesDeEncaixe = {}): Encaixe 
       copia: candidata.copia,
       x: escolha.x,
       y: escolha.y,
+      dx: escolha.dx,
+      dy: escolha.dy,
       rotacaoGraus: escolha.rotacao,
       espelhada: candidata.espelhada,
     });
@@ -296,9 +351,15 @@ export function encaixarBuscando(
   // chamador, se houver, manda: quem pediu 30 graus quer 30 graus.
   const passos = opcoes.passoDeGiroGraus === undefined ? [90, 45, 30] : [opcoes.passoDeGiroGraus];
 
+  // As formas de cada passo saem UMA vez e servem todas as ordens daquele passo.
+  const preparados = passos.map((passo) => prepararEncaixe(modelo, { ...opcoes, passoDeGiroGraus: passo }));
+
   for (let i = 0; i < quantas; i++) {
-    const passo = passos[i % passos.length]!;
-    const e = encaixar(modelo, { ...opcoes, semente: Math.floor(i / passos.length), passoDeGiroGraus: passo });
+    const pronto = preparados[i % passos.length]!;
+    const e =
+      pronto.util === null
+        ? encaixar(modelo, opcoes)
+        : colocar(pronto.candidatas, pronto.util, pronto.problemas, Math.floor(i / passos.length));
     comprimentos.push(e.comprimentoUsadoUM);
     if (e.colocacoes.length === 0) {
       // Sem colocação nenhuma o problema não é a ordem: é o rolo ou a peça.
@@ -332,6 +393,15 @@ function misturar(texto: string): number {
   return h >>> 0;
 }
 
+/** Um contorno pronto para encaixar, e o canto que ele tinha antes de ir para a origem. */
+interface Forma {
+  readonly caminho: Path64;
+  readonly largura: number;
+  readonly altura: number;
+  readonly minX: number;
+  readonly minY: number;
+}
+
 interface Candidata {
   readonly pecaId: Id;
   readonly nome: string;
@@ -339,7 +409,7 @@ interface Candidata {
   readonly espelhada: boolean;
   readonly peca: Peca;
   /** Contorno de corte por rotacao, ja com folga, encostado na origem. */
-  readonly porRotacao: Map<number, { caminho: Path64; largura: number; altura: number }>;
+  readonly porRotacao: Map<number, Forma>;
   readonly area: number;
 }
 
@@ -379,7 +449,7 @@ function montarCandidatas(
         ? espelharPeca(peca, { p1: { x: 0, y: 0 }, p2: { x: 0, y: 1000 } })
         : peca;
 
-      const porRotacao = new Map<number, { caminho: Path64; largura: number; altura: number }>();
+      const porRotacao = new Map<number, Forma>();
       let areaDaPeca = 0;
       for (const graus of rotacoesPermitidas(peca, passoDeGiro)) {
         const forma = contornoParaEncaixe(base, graus, folga);
@@ -414,11 +484,25 @@ function contornoParaEncaixe(
   peca: Peca,
   graus: number,
   folga: number,
-): { caminho2: { caminho: Path64; largura: number; altura: number }; area: number } | null {
+): { caminho2: Forma; area: number } | null {
   try {
     const girada = graus === 0 ? peca : rotacionarPeca(peca, { x: 0, y: 0 }, graus);
-    const simples = simplificarContorno(girada, SIMPLIFICACAO_UM);
-    const corte = offsetMargem(simples).pontos;
+
+    // A simplificacao e no ANEL JA TESSELADO, e nao na peca.
+    //
+    //  do motor so mexe em trechos de RETAS dentro de uma
+    // aresta — de proposito, para nao estragar curva. Só que peca digitalizada e
+    // quase toda curva, e o  tessela cada Bezier a 0,1 mm: o anel
+    // chega aqui com centenas de pontos. O Minkowski entre dois poligonos de 500
+    // pontos sao 250 mil quadrilateros, e o encaixe das 11 pecas reais nao
+    // terminava em dez minutos.
+    //
+    // Aqui o anel ja e uma poligonal simples, e o Douglas-Peucker do clipper pode
+    // trabalhar nela inteira. Os 0,5 mm continuam muito abaixo da folga de 2 mm,
+    // entao o erro e absorvido como sempre foi.
+    const tesselado = offsetMargem(girada).pontos.map((p) => ({ x: p.x, y: p.y }));
+    const corte =
+      tesselado.length > 8 ? ramerDouglasPeucker(tesselado, SIMPLIFICACAO_UM) : tesselado;
 
     // Meia folga em CADA peca da a folga inteira entre duas — e assim ela entra
     // uma vez so na conta, em vez de dobrar sem ninguem perceber. Quem infla e o
@@ -437,7 +521,12 @@ function contornoParaEncaixe(
     const maxY = Math.max(...anel.map((p) => p.y));
     const caminho: Path64 = anel.map((p) => ({ x: p.x - minX, y: p.y - minY }));
     return {
-      caminho2: { caminho, largura: maxX - minX, altura: maxY - minY },
+      // `minX`/`minY` viajam junto de propósito: são o canto que este contorno
+      // tinha ANTES de ser encostado na origem, e é com eles que se calcula o
+      // deslocamento exato que põe a peça onde o encaixe decidiu. Sem eles, quem
+      // aplica o encaixe teria que refazer simplificação, corte e inflação para
+      // achar o mesmo canto — e um fio de diferença ali vira peça sobreposta.
+      caminho2: { caminho, largura: maxX - minX, altura: maxY - minY, minX, minY },
       area: Math.abs(area(corte)),
     };
   } catch (erro) {
@@ -449,6 +538,9 @@ function contornoParaEncaixe(
 interface Escolha {
   readonly x: number;
   readonly y: number;
+  /** O deslocamento a aplicar na peça girada. É o que `aplicarEncaixe` usa. */
+  readonly dx: number;
+  readonly dy: number;
   readonly rotacao: number;
   readonly contorno: Path64;
   readonly largura: number;
@@ -457,68 +549,151 @@ interface Escolha {
 }
 
 /**
- * A posicao mais a esquerda (e mais baixa no empate) em que a peca cabe.
+ * A melhor posição para a peça: a que deixa a faixa mais curta.
  *
- * Os candidatos sao os vertices dos NFPs — as posicoes em que a peca ENCOSTA numa
- * ja posta sem sobrepor — mais o pe da faixa. Isso e o que torna a busca finita: o
- * otimo do bottom-left esta sempre num desses pontos.
+ * ## O erro que estava aqui, e por que ele custava tecido
+ * A primeira versão pegava como candidatas apenas os **vértices de cada NFP,
+ * calculado contra uma peça posta de cada vez**. Isso deixa de fora justamente as
+ * posições que valem ouro num encaixe:
+ *
+ * - o **encaixe no canto formado por DUAS peças** — que é onde dois NFPs se cruzam,
+ *   e um vértice desse cruzamento não é vértice de nenhum dos dois;
+ * - a peça **encostada na borda da faixa**, que é onde um NFP corta a parede.
+ *
+ * Ou seja: a peça nunca se enfiava num vão entre duas vizinhas, e nunca raspava a
+ * ourela. Sobrava tecido em todo lugar onde o encaixe bom aparece.
+ *
+ * ## O conserto: a região viável, exata
+ * O conjunto de posições válidas é
+ *
+ * ```
+ * viável = (retângulo da faixa)  −  (união de todos os NFPs)
+ * ```
+ *
+ * e o ótimo do bottom-left está sempre num **vértice** dessa região. Quem calcula a
+ * subtração é o clipper2 — e ele devolve de graça todos os cruzamentos que faltavam,
+ * porque criar vértice em cruzamento é exatamente o que uma operação booleana faz.
+ *
+ * O retângulo já embute a parede: as posições de referência vão de `x = 0` a
+ * `x = útil − largura`, então nada pode sair da faixa por construção.
+ *
+ * ## O objetivo
+ * Não é "o mais baixo" nem "o mais à esquerda": é **o comprimento que a faixa fica
+ * tendo**. Uma peça que desce muito mas cresce para além do fim da fila piora o
+ * consumo; uma que encaixa num buraco no meio não muda nada e é de graça. Empate
+ * resolve pelo mais baixo, depois pelo mais à esquerda, depois pelo ângulo — nessa
+ * ordem, para o resultado não depender da ordem do `Map`.
  */
 function melhorPosicao(
   candidata: Candidata,
   postas: readonly Path64[],
   util: number,
+  comprimentoAtual: number,
 ): Escolha | null {
   let melhor: Escolha | null = null;
+  let melhorNota: [number, number, number, number] | null = null;
 
   for (const [rotacao, forma] of candidata.porRotacao) {
     if (forma.largura > util) continue;
 
-    const nfps = postas.map((posta) => unir(minkowskiDiff(forma.caminho, posta, true)));
-    const pontos: Vetor2[] = [{ x: 0, y: 0 }];
-    for (const nfp of nfps) {
-      for (const anel of nfp) {
-        for (const p of anel) pontos.push({ x: Number(p.x), y: Number(p.y) });
-      }
+    // O teto do retângulo: alto o bastante para SEMPRE caber a peça acima de tudo
+    // que já está posto. Sem essa garantia a região poderia sair vazia e a peça
+    // seria recusada por um limite artificial, e não por não caber no rolo.
+    const teto = comprimentoAtual + forma.altura + 1;
+    const faixa: Path64 = [
+      { x: 0, y: 0 },
+      { x: util - forma.largura, y: 0 },
+      { x: util - forma.largura, y: teto },
+      { x: 0, y: teto },
+    ];
+
+    // A subtracao e INCREMENTAL, um NFP de cada vez.
+    //
+    // Juntar todos os NFPs numa uniao so antes de subtrair parece mais rapido e
+    // esta errado: o Minkowski de pecas diferentes sai com orientacoes diferentes,
+    // e a regra NonZero trata orientacao oposta como SUBTRACAO — um NFP apagava o
+    // outro e a posicao proibida virava livre. Medido: 13 pares de pecas
+    // sobrepostas, a pior com 1664 cm2 de area em comum. Uma peca em cima da outra.
+    //
+    // Subtraindo um por vez, cada operacao e entre dois conjuntos bem formados e o
+    // clipper resolve a orientacao dentro dela.
+    let livre: Paths64 = [faixa];
+    for (const posta of postas) {
+      const nfp = nfpDe(forma.caminho, posta);
+      if (nfp.length === 0) continue;
+      livre = difference(livre, nfp, FillRule.NonZero);
+      if (livre.length === 0) break;
     }
 
-    // Ordem: quem avanca menos no rolo primeiro, e a esquerda no empate. E o
-    // "bottom-left" da literatura, com a faixa correndo em y.
-    pontos.sort((a, b) => a.y - b.y || a.x - b.x);
+    for (const anel of livre) {
+      for (const ponto of anel) {
+        const x = Number(ponto.x);
+        const y = Number(ponto.y);
+        if (x < 0 || y < 0 || x + forma.largura > util) continue;
 
-    for (const ponto of pontos) {
-      const x = ponto.x;
-      const y = Math.max(0, ponto.y);
-      if (x < 0 || x + forma.largura > util) continue;
-      if (nfps.some((nfp) => dentroDeAlgum(nfp, { x, y }))) continue;
+        // A nota é o comprimento que a faixa PASSA A TER com esta peça aqui.
+        const nota: [number, number, number, number] = [
+          Math.max(comprimentoAtual, y + forma.altura),
+          y,
+          x,
+          rotacao,
+        ];
+        if (melhorNota !== null && !menor(nota, melhorNota)) continue;
 
-      const escolha: Escolha = {
-        x,
-        y,
-        rotacao,
-        contorno: forma.caminho,
-        largura: forma.largura,
-        altura: forma.altura,
-        area: candidata.area,
-      };
-      // Entre rotacoes, ganha quem avanca menos no rolo; empate pelo x, depois
-      // pelo angulo, para o resultado nao depender da ordem do Map.
-      if (
-        melhor === null ||
-        y + forma.altura < melhor.y + melhor.altura ||
-        (y + forma.altura === melhor.y + melhor.altura &&
-          (x < melhor.x || (x === melhor.x && rotacao < melhor.rotacao)))
-      ) {
-        melhor = escolha;
+        melhorNota = nota;
+        melhor = {
+          x,
+          y,
+          dx: x - forma.minX,
+          dy: y - forma.minY,
+          rotacao,
+          contorno: forma.caminho,
+          largura: forma.largura,
+          altura: forma.altura,
+          area: candidata.area,
+        };
       }
-      break;
     }
   }
 
   return melhor;
 }
 
+/** Comparação lexicográfica de duas notas. */
+function menor(a: readonly number[], b: readonly number[]): boolean {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]! !== b[i]!) return a[i]! < b[i]!;
+  }
+  return false;
+}
 function unir(caminhos: Paths64): Paths64 {
   return union(caminhos, [], FillRule.NonZero);
+}
+
+/**
+ * O NFP de uma peça contra outra — **sem buraco**.
+ *
+ * O `minkowskiDiff` do clipper devolve DOIS caminhos para dois retângulos: o NFP
+ * de verdade (740 × 1240 = 917 600 mm² no caso medido) e um segundo, de área
+ * negativa, que é a EROSÃO — (420−320) × (720−520) = 20 000 mm². Unindo os dois, o
+ * segundo vira buraco, e o buraco vira posição livre bem no meio da peça que já
+ * está lá.
+ *
+ * Foi o pior defeito desta fase: doze peças com treze pares sobrepostos, a pior
+ * com 1664 cm² de área em comum — peça inteira em cima de peça inteira. O código
+ * antigo mascarava por acaso, porque testava ponto-dentro-de-ANEL e o ponto caía
+ * dentro dos dois anéis; quando a colocação passou a usar a região viável de
+ * verdade, o buraco virou posição válida.
+ *
+ * Ficam só os anéis de área positiva. Um NFP de peça côncava pode ter buraco
+ * legítimo — posição em que a móvel cabe dentro de uma reentrância da fixa —, e
+ * jogar fora é perder essa posição. É uma perda de aproveitamento, não de
+ * segurança, e a alternativa é peça cortada em cima de peça.
+ */
+function nfpDe(movel: Path64, fixa: Path64): Paths64 {
+  const cru = minkowskiDiff(movel, fixa, true);
+  const soFora = cru.filter((anel) => areaPaths([anel]) > 0);
+  return unir(soFora.length === 0 ? cru : soFora);
 }
 
 function dentroDeAlgum(nfp: Paths64, ponto: Vetor2): boolean {
@@ -579,9 +754,12 @@ export function aplicarEncaixe(
     if (colocacao.rotacaoGraus !== 0) {
       peca = rotacionarPeca(peca, { x: 0, y: 0 }, colocacao.rotacaoGraus);
     }
-    const corte = offsetMargem(peca).pontos;
-    const minX = Math.min(...corte.map((p) => p.x));
-    const minY = Math.min(...corte.map((p) => p.y));
-    return { colocacao, peca: transladarPeca(peca, colocacao.x - minX, colocacao.y - minY) };
+    // O deslocamento vem GRAVADO da decisão, e não é redescoberto aqui. Foi assim
+    // que apareceu o pior defeito desta fase: o encaixe decidia olhando o contorno
+    // simplificado e inflado, e a aplicação encostava o contorno de verdade — dois
+    // cantos diferentes, peças planejadas encostadas saindo sobrepostas em até
+    // 1664 cm². Com o encaixe frouxo antigo a folga escondia; com o encaixe justo
+    // aparece na primeira peça.
+    return { colocacao, peca: transladarPeca(peca, colocacao.dx, colocacao.dy) };
   });
 }
