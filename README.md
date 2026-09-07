@@ -1,8 +1,8 @@
 # cad.moldes
 
 Motor geométrico 2D para modelagem de moldes de confecção, em TypeScript puro, mais a persistência
-por log de eventos e o backend. **Fases 1 a 5 completas, Fase 6 começada: 454 testes passando** (192 motor + 141 editor + 14 DXF + 9 plotter +
-11 encaixe + 50 foto + 18 persistência + 19 API).
+por log de eventos e o backend. **Fases 1 a 6 completas, mais o assistente: 474 testes passando** (192 motor + 141 editor + 14 DXF + 9 plotter +
+11 encaixe + 50 foto + 20 IA + 18 persistência + 19 API).
 
 A especificação normativa está em [`MD/`](MD/README-fase1.MD) — comece pelo índice. A **Parte 6**
 diz onde o código está e traz cada decisão com o número medido que a sustenta.
@@ -21,6 +21,7 @@ diz onde o código está e traz cada decisão com o número medido que a sustent
 | `@cad/plotter` | gerar HPGL para a plotadora e a cortadora |
 | `@cad/encaixe` | encaixar as peças na faixa do tecido, por No-Fit Polygon |
 | `@cad/foto` | digitalizar molde por foto: quadro, homografia, segmentação, contorno e curvas |
+| `@cad/ia` | o catálogo de ferramentas que o assistente usa para operar o CAD |
 | `demo/` | o motor rodando no navegador, com o cursor |
 
 ## Rodar

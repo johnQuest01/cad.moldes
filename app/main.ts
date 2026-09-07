@@ -39,6 +39,13 @@ import { gerarHpgl } from '@cad/plotter';
 import { aplicarEncaixe, encaixar, type Encaixe } from '@cad/encaixe';
 import { calibrarComObjeto, digitalizar, objetoConhecidoMM, type Calibracao } from '@cad/foto';
 import {
+  INSTRUCOES,
+  acharFerramenta,
+  contextoEmTexto,
+  ferramentasParaAPI,
+  type Resultado,
+} from '@cad/ia';
+import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   type Id,
   LARGURA_PADRAO_DO_PIQUE_UM,
@@ -906,3 +913,327 @@ if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV === true) {
 marcarFerramenta();
 conferirCamera();
 redesenhar();
+
+
+// ------------------------------------------------------------------------ IA
+
+/**
+ * O assistente.
+ *
+ * ## Onde a segurança mora
+ * Tudo o que a IA faz vira **gesto**, e todo gesto passa pela mesma `sessao.aplicar`
+ * que o mouse usa — que reconstrói o log inteiro antes de aceitar. Uma ação errada
+ * dela falha alto, com a mensagem do próprio motor, e essa mensagem volta para o
+ * modelo como resultado da ferramenta: ele lê, entende e corrige. Não existe atalho
+ * para o estado; se existisse, as garantias das seis fases valeriam só para o mouse.
+ *
+ * E porque é gesto, `Ctrl+Z` desfaz o que ela fez exatamente como desfaz o que a
+ * pessoa fez. É essa rede que torna a coisa aceitável.
+ *
+ * ## A chave
+ * É do cliente, fica no navegador dele, e viaja só para o provedor do modelo. Não
+ * há servidor nosso no caminho — não há onde vazar.
+ */
+const CHAVE_API = 'cad.moldes:chave-ia';
+
+interface BlocoTexto {
+  type: 'text';
+  text: string;
+}
+interface BlocoFerramenta {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+type Bloco = BlocoTexto | BlocoFerramenta;
+interface Mensagem {
+  role: 'user' | 'assistant';
+  content: string | unknown[];
+}
+
+const conversa: Mensagem[] = [];
+
+const iaEstado = (t: string): void => {
+  em('#ia-estado').textContent = t;
+};
+
+function falar(quem: string, corpo: string, classe = ''): HTMLElement {
+  const div = document.createElement('div');
+  div.className = `ia-fala ${classe}`;
+  div.innerHTML = `<span class="quem"></span><div class="corpo"></div>`;
+  (div.querySelector('.quem') as HTMLElement).textContent = quem;
+  (div.querySelector('.corpo') as HTMLElement).textContent = corpo;
+  em('#ia-conversa').append(div);
+  em('#ia-conversa').scrollTop = em('#ia-conversa').scrollHeight;
+  return div;
+}
+
+function anotarFerramenta(texto: string, falhou = false): void {
+  const div = document.createElement('div');
+  div.className = `ia-ferramenta${falhou ? ' falhou' : ''}`;
+  div.textContent = texto;
+  em('#ia-conversa').append(div);
+  em('#ia-conversa').scrollTop = em('#ia-conversa').scrollHeight;
+}
+
+/** Executa o que a ferramenta devolveu, e diz ao modelo o que aconteceu. */
+function executarResultado(r: Resultado): { texto: string; falhou: boolean } {
+  switch (r.tipo) {
+    case 'leitura':
+      return { texto: r.texto, falhou: false };
+
+    case 'erro':
+      return { texto: r.mensagem, falhou: true };
+
+    case 'gestos':
+      try {
+        sessao.aplicar(...r.gestos);
+        editor.selecao.podar(editor.cena);
+        redesenhar();
+        return { texto: `Feito. ${r.resumo}`, falhou: false };
+      } catch (e) {
+        // A mensagem do motor volta INTEIRA: é ela que ensina o modelo a corrigir.
+        return { texto: `O motor recusou: ${String(e)}`, falhou: true };
+      }
+
+    case 'confirmar': {
+      if (!globalThis.confirm(r.pergunta)) {
+        return { texto: 'A pessoa NÃO confirmou. Nada foi alterado.', falhou: false };
+      }
+      try {
+        sessao.aplicar(...r.gestos);
+        editor.selecao.podar(editor.cena);
+        redesenhar();
+        return { texto: `Confirmado e feito. ${r.resumo}`, falhou: false };
+      } catch (e) {
+        return { texto: `O motor recusou: ${String(e)}`, falhou: true };
+      }
+    }
+
+    case 'acao':
+      return executarAcao(r);
+  }
+}
+
+/** As ações que são da aplicação, não do modelo. */
+function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string; falhou: boolean } {
+  try {
+    switch (r.acao) {
+      case 'enquadrar':
+        editor.camera.enquadrar(editor.cena.caixa(), 48);
+        redesenhar();
+        return { texto: 'Vista enquadrada.', falhou: false };
+
+      case 'mostrar_tamanho': {
+        const alvo = String(r.argumentos.tamanho ?? '');
+        if (!sessao.modelo.tamanhos.includes(alvo)) {
+          return {
+            texto: `Não existe o tamanho "${alvo}". Os tamanhos são: ${sessao.modelo.tamanhos.join(', ')}.`,
+            falhou: true,
+          };
+        }
+        editor.cena.tamanho = alvo;
+        redesenhar();
+        return { texto: `A tela mostra agora o tamanho ${alvo}.`, falhou: false };
+      }
+
+      case 'encaixar': {
+        const e = rodarEncaixe();
+        if (e.colocacoes.length === 0) {
+          return { texto: e.problemas[0]?.mensagem ?? 'Nada encaixado.', falhou: true };
+        }
+        return {
+          texto:
+            `${e.colocacoes.length} peça(s) em ${mm(e.comprimentoUsadoUM)} mm de rolo ` +
+            `(largura útil ${mm(e.larguraUtilUM)} mm), aproveitamento ` +
+            `${(e.aproveitamento * 100).toFixed(1)}%.`,
+          falhou: false,
+        };
+      }
+
+      case 'exportar': {
+        const formato = String(r.argumentos.formato ?? '');
+        if (formato === 'dxf') {
+          em<HTMLButtonElement>('#exportar-dxf').click();
+          return { texto: 'DXF baixado.', falhou: false };
+        }
+        if (formato === 'risco') {
+          em<HTMLButtonElement>('#ver-risco').click();
+          return { texto: 'Risco aberto na tela.', falhou: false };
+        }
+        if (formato === 'hpgl') {
+          const encaixado = r.argumentos.encaixado !== false;
+          em<HTMLButtonElement>(encaixado ? '#exportar-hpgl-encaixe' : '#exportar-hpgl').click();
+          return {
+            texto: `HPGL ${encaixado ? 'encaixado' : 'enfileirado'} baixado.`,
+            falhou: false,
+          };
+        }
+        return { texto: `Formato "${formato}" não existe. Use dxf, hpgl ou risco.`, falhou: true };
+      }
+
+      default:
+        return { texto: `Ação "${r.acao}" não implementada nesta tela.`, falhou: true };
+    }
+  } catch (e) {
+    return { texto: `Falhou: ${String(e)}`, falhou: true };
+  }
+}
+
+/** Uma chamada à API do modelo. */
+async function chamarModelo(chave: string): Promise<{
+  content: Bloco[];
+  stop_reason: string;
+}> {
+  const resposta = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': chave,
+      'anthropic-version': '2023-06-01',
+      // Sem isto o navegador é barrado: a API exige o consentimento explícito de
+      // quem chama do lado do cliente.
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: em<HTMLSelectElement>('#ia-modelo').value,
+      max_tokens: 2048,
+      system: `${INSTRUCOES}\n\n${contextoEmTexto({ tamanho: editor.cena.tamanho, pecaAtiva: sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? null })}`,
+      tools: ferramentasParaAPI(),
+      messages: conversa,
+    }),
+  });
+  if (!resposta.ok) {
+    const corpo = await resposta.text();
+    throw new Error(`A API respondeu ${resposta.status}: ${corpo.slice(0, 300)}`);
+  }
+  return (await resposta.json()) as { content: Bloco[]; stop_reason: string };
+}
+
+/**
+ * A rodada: manda, e enquanto o modelo pedir ferramenta, executa e devolve.
+ *
+ * O limite de voltas existe porque um modelo confuso pode entrar em ciclo, e um
+ * ciclo aqui gasta o dinheiro do cliente. Oito é folgado para qualquer pedido real.
+ */
+async function rodada(chave: string): Promise<void> {
+  for (let volta = 0; volta < 8; volta++) {
+    const r = await chamarModelo(chave);
+    conversa.push({ role: 'assistant', content: r.content });
+
+    for (const bloco of r.content) {
+      if (bloco.type === 'text' && bloco.text.trim() !== '') falar('assistente', bloco.text.trim());
+    }
+
+    const pedidos = r.content.filter((b): b is BlocoFerramenta => b.type === 'tool_use');
+    if (pedidos.length === 0) return;
+
+    const respostas: unknown[] = [];
+    for (const pedido of pedidos) {
+      const ferramenta = acharFerramenta(pedido.name);
+      if (ferramenta === null) {
+        anotarFerramenta(`${pedido.name} — não existe`, true);
+        respostas.push({
+          type: 'tool_result',
+          tool_use_id: pedido.id,
+          is_error: true,
+          content: `Não existe a ferramenta "${pedido.name}".`,
+        });
+        continue;
+      }
+      const resultado = executarResultado(ferramenta.executar(sessao.modelo, pedido.input));
+      anotarFerramenta(`${pedido.name}: ${resultado.texto.split('\n')[0]}`, resultado.falhou);
+      respostas.push({
+        type: 'tool_result',
+        tool_use_id: pedido.id,
+        is_error: resultado.falhou,
+        content: resultado.texto,
+      });
+    }
+    conversa.push({ role: 'user', content: respostas });
+  }
+  falar('assistente', 'Dei muitas voltas sem chegar a uma resposta. Tente pedir de outro jeito.');
+}
+
+function mostrarChave(): void {
+  const tem = globalThis.localStorage.getItem(CHAVE_API) !== null;
+  em('#ia-linha-chave').hidden = tem;
+  em('#ia-trocar-chave').hidden = !tem;
+  em('#ia-texto').hidden = !tem;
+  em('#ia-enviar').hidden = !tem;
+  if (!tem) {
+    iaEstado('Cole a sua chave de API para conectar. Ela fica só neste navegador.');
+  }
+}
+
+em('#ia-abrir').addEventListener('click', () => {
+  em('#ia').hidden = false;
+  mostrarChave();
+  if (em('#ia-conversa').childElementCount === 0) {
+    falar(
+      'assistente',
+      'Oi. Eu opero este programa para você — pode falar como falaria com uma colega.\n\n' +
+        'Exemplos: "quantas peças tem aqui?", "põe 1 cm de costura na frente", ' +
+        '"a manga sai em par, 2 vezes", "quanto de tecido gasta num rolo de 1,60 m?", ' +
+        '"exporta o HPGL encaixado".\n\n' +
+        'Não vou chutar medida: se faltar um número, eu pergunto. E tudo o que eu fizer ' +
+        'você desfaz com Ctrl+Z.',
+    );
+  }
+  em<HTMLTextAreaElement>('#ia-texto').focus();
+});
+
+const fecharIa = (): void => {
+  em('#ia').hidden = true;
+};
+em('#ia-fechar').addEventListener('click', fecharIa);
+em('#ia').addEventListener('click', (evento) => {
+  if (evento.target === em('#ia')) fecharIa();
+});
+
+em('#ia-guardar-chave').addEventListener('click', () => {
+  const chave = em<HTMLInputElement>('#ia-chave').value.trim();
+  if (chave === '') return;
+  globalThis.localStorage.setItem(CHAVE_API, chave);
+  em<HTMLInputElement>('#ia-chave').value = '';
+  mostrarChave();
+  iaEstado('Conectado. Tudo o que ela fizer some com Ctrl+Z.');
+});
+
+em('#ia-trocar-chave').addEventListener('click', () => {
+  globalThis.localStorage.removeItem(CHAVE_API);
+  mostrarChave();
+});
+
+async function enviar(): Promise<void> {
+  const chave = globalThis.localStorage.getItem(CHAVE_API);
+  if (chave === null) return;
+  const caixa = em<HTMLTextAreaElement>('#ia-texto');
+  const pedido = caixa.value.trim();
+  if (pedido === '') return;
+
+  caixa.value = '';
+  falar('você', pedido, 'pessoa');
+  conversa.push({ role: 'user', content: pedido });
+  em<HTMLButtonElement>('#ia-enviar').disabled = true;
+  iaEstado('Pensando…');
+  try {
+    await rodada(chave);
+    iaEstado('Tudo o que ela fizer some com Ctrl+Z.');
+  } catch (e) {
+    falar('assistente', `Não consegui falar com o modelo. ${String(e)}`);
+    iaEstado('Falhou. Confira a chave e a internet.');
+  } finally {
+    em<HTMLButtonElement>('#ia-enviar').disabled = false;
+  }
+}
+
+em('#ia-enviar').addEventListener('click', () => void enviar());
+em('#ia-texto').addEventListener('keydown', (evento) => {
+  // Enter manda, Shift+Enter quebra linha: é o que todo mundo já espera de um chat.
+  if (evento.key === 'Enter' && !evento.shiftKey) {
+    evento.preventDefault();
+    void enviar();
+  }
+});

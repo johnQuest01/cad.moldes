@@ -211,6 +211,26 @@ conferir(
   `${hpglEncaixado.pecasPlotadas} peca plotada, ${motor.umParaMM(hpglEncaixado.comprimentoUsadoUM)} mm de rolo`,
 );
 
+console.log('@cad/ia');
+const ia = await import('@cad/ia');
+// Nao basta o catalogo existir: uma ferramenta tem que EXECUTAR e devolver gesto
+// que o MOTOR aceite. E o contrato inteiro do assistente numa linha.
+const modeloParaIA = motor.reconstruir(log);
+const renomear = ia.acharFerramenta('renomear_peca').executar(modeloParaIA, {
+  peca: 'R',
+  nome: 'FRENTE',
+});
+const comoEvento = (g, i) => ({ ...envelope(900 + i, g.pecaId), tipo: g.tipo, payload: g.payload });
+const depoisDaIA =
+  renomear.tipo === 'gestos'
+    ? motor.reconstruir([...log, ...renomear.gestos.map(comoEvento)])
+    : null;
+conferir(
+  'o catalogo do artefato construido executa e o gesto passa no motor',
+  ia.CATALOGO.length > 10 && depoisDaIA?.pecas['p']?.metadados.nome === 'FRENTE',
+  `${ia.CATALOGO.length} ferramentas | renomear_peca -> "${depoisDaIA?.pecas['p']?.metadados.nome}"`,
+);
+
 console.log('@cad/api');
 const api = await import('@cad/api');
 conferir('exporta criarServidor', typeof api.criarServidor === 'function');
