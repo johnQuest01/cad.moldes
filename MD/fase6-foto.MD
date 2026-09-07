@@ -414,6 +414,86 @@ de lente. Se ainda assim não couber, o número vai **na tela** (I11).
 
 ---
 
+### Do passeio de pixels ao contorno do motor
+
+A ordem das etapas não é a óbvia, e a razão é o **pique**. Ele é um corte de ~6 mm de fundo
+por ~1,6 mm de boca; qualquer ajuste de curva que passe por cima dele o transforma numa
+ondulação da cava e ele **some sem avisar**. Então:
+
+1. **simplificar** o passeio de pixels (Douglas-Peucker do `clipper2`, a mesma implementação
+   que o motor usa — tolerância ligada ao tamanho do pixel, porque abaixo dela não existe
+   desenho, existe escada de quantização);
+2. **achar e tirar os piques**, guardando a posição de cada um em comprimento de arco;
+3. **achar os cantos** no que sobrou;
+4. **ajustar** reta ou Bézier cúbica entre cantos consecutivos (Schneider, *Graphics Gems*,
+   pela `fit-curve`).
+
+O critério do pique é o do ofício, não estatístico: **boca estreita, fundo na faixa do
+notcher, e para DENTRO**. Recorte de verdade é largo; ondulação de cava é rasa; pique é fundo
+e estreito.
+
+### Medido em figura sintética
+
+| | Resultado |
+|---|---|
+| Retângulo tesselado de 400 pontos, simplificado | **5 pontos** |
+| Pique de 6,35 × 1,60 mm | achado, **fundo 6,35 mm, boca 1,60 mm** |
+| Cinco piques numa borda | **cinco achados**, nenhum confundido com canto |
+| Recorte de 30 mm de boca | **não** confundido com pique |
+| Ondulação de 0,8 mm de fundo | **não** confundida com pique |
+| Retângulo 200 × 100 | **4 cantos** |
+| Círculo de raio 50 mm | **0 cantos** |
+| Trecho reto | vira **reta**, resíduo **0** |
+| Arco de 90° e raio 80 mm | 4 Béziers, **pior erro de raio 0,0121 mm** (tolerância pedida 0,200) |
+
+### Dois defeitos que só a figura sintética pegaria
+
+**O `s` do pique saía 5,6 mm fora do lugar.** Medido no anel cru, o comprimento acumulado
+passa pelo fundo do V e leva junto os 6,4 mm de descida e os 6,4 de subida: um pique a
+80,8 mm era registrado a **86,4 mm**. O `s` tem que ser medido ao longo da **aresta**, que é o
+contorno já sem o pique — e é o que `removerPiques` agora recalcula. Num molde, 5,6 mm de
+erro na posição de um pique é costura que não casa.
+
+**Os quatro cantos de um retângulo viravam um canto só.** A junção de cantos vizinhos estava
+por índice, e num anel já simplificado dois índices seguidos podem estar a 200 mm um do
+outro. Passou a ser por **distância de arco**.
+
+Nenhum dos dois apareceria na foto: lá ninguém sabe a resposta certa.
+
+### O caminho inteiro na foto real
+
+Com escala **provisória** (largura do quadro assumida em 1380 mm, altura vinda da proporção
+medida 1,7415 → 792 mm), resolução de **1,414 mm por pixel**, tolerância de trabalho
+**2,12 mm**:
+
+```
+peca   largura   altura   perimetro   pontos   cantos   trechos   piques
+   1       576      299        1572       27        7        24        0
+   2       347      252        1134       12        8        10        0
+   3       417      201        1094       26        9        20        0
+   4       538      145        1261       21        7        20        0
+   5       129      455        1080       16        6        13        0
+   6       346      169         944       17        9        13        0
+   7       321      174         911       16        5        14        0
+   8       182      227         723       19       10        18        0
+   9       421       71         944       13        7        11        0
+  10       159      134         517       14        5        13        0
+  11        90      124         379       11        7         9        0
+
+total: 11 pecas, 192 pontos, 165 trechos (retas + Beziers), 0 piques
+```
+
+**Zero piques, e o motivo é a resolução, não o método.** Um pique de 1,6 mm de boca ocupa
+**um** pixel nesta foto, e a simplificação a 2,12 mm o apaga junto com a escada. Nesta
+resolução, pique não é detectável — e o sistema não vai fingir que é. Com o arquivo original
+da câmera (~0,35 mm/px), a boca passa a ter 4 a 5 pixels e a detecção que já está testada
+passa a ter o que ver.
+
+**As medidas em milímetro são ordem de grandeza**, não medida: dependem da largura assumida
+de 1380 mm, que é justamente o número que ainda não está confirmado. Conferi-las com a trena
+é, aliás, um caminho válido para achar a escala — se a peça 1 mede outra coisa, a largura do
+quadro sai por regra de três.
+
 ## Parte 5 — O que esta fase NÃO faz
 
 - **Não adivinha semântica.** Nome, quantidade, tecido, qual aresta é o quê: formulário (I10).

@@ -59,3 +59,15 @@ export {
   aspectoDetectado,
   conferirQuadroContraCalibracao,
 } from './quadro.js';
+
+export {
+  FUNDO_TIPICO_DO_PIQUE_UM,
+  ajustarCurvas,
+  detectarCantos,
+  detectarPiques,
+  removerPiques,
+  simplificarAnel,
+  type OpcoesDePique,
+  type Pique,
+  type TrechoAjustado,
+} from './contorno.js';
