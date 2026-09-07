@@ -331,3 +331,35 @@ describe('Ações da aplicação', () => {
     }
   });
 });
+
+describe('As ferramentas do leigo', () => {
+  it('desfazer, refazer, descartar, redigitalizar e otimizar saem como acao', () => {
+    console.log('--- o que o leigo pede ---');
+    for (const [nome, args] of [
+      ['desfazer', { quantos: 2 }],
+      ['refazer', {}],
+      ['descartar_alteracoes', {}],
+      ['redigitalizar_foto', { tolerancia_mm: 1.5, sensibilidade_cor: 50 }],
+      ['otimizar_encaixe', { tentativas: 20 }],
+    ] as const) {
+      const r = usar(nome, args);
+      console.log(`${nome.padEnd(22)} -> ${r.tipo}`);
+      expect(r.tipo).toBe('acao');
+      if (r.tipo === 'acao') expect(r.acao).toBe(nome);
+    }
+  });
+
+  it('a descricao de otimizar promete o que a busca entrega: nunca pior', () => {
+    const f = acharFerramenta('otimizar_encaixe')!;
+    console.log(f.descricao);
+    expect(f.descricao).toContain('MENOS TECIDO');
+    expect(f.descricao).toContain('Nunca sai pior');
+  });
+
+  it('a descricao de redigitalizar fala a lingua de quem reclama', () => {
+    const f = acharFerramenta('redigitalizar_foto')!;
+    console.log(f.descricao);
+    // Quem opera nao diz "tolerancia de Douglas-Peucker": diz "a borda ficou estranha".
+    expect(f.descricao).toContain('borda estranha');
+  });
+});

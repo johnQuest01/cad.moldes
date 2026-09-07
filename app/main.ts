@@ -36,14 +36,19 @@ import {
 import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pixi';
 import { exportarDxf } from '@cad/dxf';
 import { gerarHpgl } from '@cad/plotter';
-import { aplicarEncaixe, encaixar, type Encaixe } from '@cad/encaixe';
+import { aplicarEncaixe, encaixar, encaixarBuscando, type Encaixe } from '@cad/encaixe';
 import { calibrarComObjeto, digitalizar, objetoConhecidoMM, type Calibracao } from '@cad/foto';
 import {
+  CATALOGO,
   INSTRUCOES,
+  PROVEDORES,
   acharFerramenta,
+  acharProvedor,
   contextoEmTexto,
-  ferramentasParaAPI,
+  type Provedor,
+  type Resposta,
   type Resultado,
+  type Turno,
 } from '@cad/ia';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
@@ -417,17 +422,29 @@ em('#exportar-hpgl').addEventListener('click', () => {
  */
 let encaixeAtual: Encaixe | null = null;
 
-function rodarEncaixe(): Encaixe {
-  encaixeAtual = encaixar(sessao.modelo, { tamanho: editor.cena.tamanho });
-  const erros = encaixeAtual.problemas.filter((p) => p.gravidade === 'erro');
+/**
+ * Adota um encaixe como o da vez e conta na tela.
+ *
+ * Separado de `rodarEncaixe` porque o encaixe pode vir de dois lugares — do botão
+ * ou da busca que a IA dispara — e os dois têm que alimentar o MESMO encaixe. Se
+ * cada um guardasse o seu, o risco na tela e o HPGL baixado seriam arranjos
+ * diferentes, e o operador cortaria por um olhando o outro.
+ */
+function guardarEncaixe(e: Encaixe): Encaixe {
+  encaixeAtual = e;
+  const erros = e.problemas.filter((p) => p.gravidade === 'erro');
   em('#estado-encaixe').textContent =
-    encaixeAtual.colocacoes.length === 0
-      ? `Nada encaixado: ${encaixeAtual.problemas[0]?.mensagem ?? 'sem peças.'}`
-      : `${encaixeAtual.colocacoes.length} peça(s) em ${mm(encaixeAtual.comprimentoUsadoUM)} mm de ` +
-        `rolo (${mm(encaixeAtual.larguraUtilUM)} mm úteis) | aproveitamento ` +
-        `${(encaixeAtual.aproveitamento * 100).toFixed(1)}%` +
+    e.colocacoes.length === 0
+      ? `Nada encaixado: ${e.problemas[0]?.mensagem ?? 'sem peças.'}`
+      : `${e.colocacoes.length} peça(s) em ${mm(e.comprimentoUsadoUM)} mm de ` +
+        `rolo (${mm(e.larguraUtilUM)} mm úteis) | aproveitamento ` +
+        `${(e.aproveitamento * 100).toFixed(1)}%` +
         (erros.length > 0 ? ` | ${erros.length} peça(s) recusada(s): ${erros[0]!.mensagem}` : '');
-  return encaixeAtual;
+  return e;
+}
+
+function rodarEncaixe(): Encaixe {
+  return guardarEncaixe(encaixar(sessao.modelo, { tamanho: editor.cena.tamanho }));
 }
 
 const encaixeVigente = (): Encaixe => encaixeAtual ?? rodarEncaixe();
@@ -569,6 +586,10 @@ em('#digitalizar').addEventListener('click', () => {
   void (async () => {
     try {
       const imagem = await lerImagem(arquivo);
+      // Guardada para `redigitalizar_foto`: quando a pessoa disser "a borda ficou
+      // estranha", a IA tenta de novo na MESMA foto com outros ajustes, sem obrigar
+      // ninguém a procurar o arquivo outra vez.
+      ultimaFoto = imagem;
       const d = digitalizar(imagem, {
         tenantId: TENANT,
         modeloId: MODELO,
@@ -928,37 +949,30 @@ redesenhar();
  * para o estado; se existisse, as garantias das seis fases valeriam só para o mouse.
  *
  * E porque é gesto, `Ctrl+Z` desfaz o que ela fez exatamente como desfaz o que a
- * pessoa fez. É essa rede que torna a coisa aceitável.
+ * pessoa fez.
  *
- * ## A chave
- * É do cliente, fica no navegador dele, e viaja só para o provedor do modelo. Não
- * há servidor nosso no caminho — não há onde vazar.
+ * ## A chave e o provedor
+ * A conversa é guardada em `Turno[]`, que não é o formato de provedor nenhum: cada
+ * um serializa a conversa inteira do seu jeito na hora de mandar. Trocar de modelo
+ * no meio da conversa funciona de graça.
+ *
+ * A chave é do cliente, fica no navegador dele, e viaja só para o provedor
+ * escolhido. Não há servidor nosso no caminho.
  */
 const CHAVE_API = 'cad.moldes:chave-ia';
+const CHAVE_PROVEDOR = 'cad.moldes:provedor-ia';
+const CHAVE_MODELO_IA = 'cad.moldes:modelo-ia';
+const CHAVE_BASE = 'cad.moldes:base-ia';
 
-interface BlocoTexto {
-  type: 'text';
-  text: string;
-}
-interface BlocoFerramenta {
-  type: 'tool_use';
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
-type Bloco = BlocoTexto | BlocoFerramenta;
-interface Mensagem {
-  role: 'user' | 'assistant';
-  content: string | unknown[];
-}
-
-const conversa: Mensagem[] = [];
+const conversa: Turno[] = [];
+/** A última foto lida, para `redigitalizar_foto` poder tentar de novo com outros ajustes. */
+let ultimaFoto: { largura: number; altura: number; dados: Uint8ClampedArray } | null = null;
 
 const iaEstado = (t: string): void => {
   em('#ia-estado').textContent = t;
 };
 
-function falar(quem: string, corpo: string, classe = ''): HTMLElement {
+function falar(quem: string, corpo: string, classe = ''): void {
   const div = document.createElement('div');
   div.className = `ia-fala ${classe}`;
   div.innerHTML = `<span class="quem"></span><div class="corpo"></div>`;
@@ -966,7 +980,6 @@ function falar(quem: string, corpo: string, classe = ''): HTMLElement {
   (div.querySelector('.corpo') as HTMLElement).textContent = corpo;
   em('#ia-conversa').append(div);
   em('#ia-conversa').scrollTop = em('#ia-conversa').scrollHeight;
-  return div;
 }
 
 function anotarFerramenta(texto: string, falhou = false): void {
@@ -977,40 +990,34 @@ function anotarFerramenta(texto: string, falhou = false): void {
   em('#ia-conversa').scrollTop = em('#ia-conversa').scrollHeight;
 }
 
+const provedorAtual = (): Provedor =>
+  acharProvedor(globalThis.localStorage.getItem(CHAVE_PROVEDOR) ?? 'anthropic') ?? PROVEDORES[0]!;
+
 /** Executa o que a ferramenta devolveu, e diz ao modelo o que aconteceu. */
 function executarResultado(r: Resultado): { texto: string; falhou: boolean } {
+  const aplicar = (gestos: readonly { tipo: string; pecaId: string | null; payload: unknown }[], resumo: string) => {
+    try {
+      sessao.aplicar(...gestos);
+      editor.selecao.podar(editor.cena);
+      redesenhar();
+      return { texto: `Feito. ${resumo}`, falhou: false };
+    } catch (e) {
+      // A mensagem do motor volta INTEIRA: é ela que ensina o modelo a corrigir.
+      return { texto: `O motor recusou: ${String(e)}`, falhou: true };
+    }
+  };
+
   switch (r.tipo) {
     case 'leitura':
       return { texto: r.texto, falhou: false };
-
     case 'erro':
       return { texto: r.mensagem, falhou: true };
-
     case 'gestos':
-      try {
-        sessao.aplicar(...r.gestos);
-        editor.selecao.podar(editor.cena);
-        redesenhar();
-        return { texto: `Feito. ${r.resumo}`, falhou: false };
-      } catch (e) {
-        // A mensagem do motor volta INTEIRA: é ela que ensina o modelo a corrigir.
-        return { texto: `O motor recusou: ${String(e)}`, falhou: true };
-      }
-
-    case 'confirmar': {
-      if (!globalThis.confirm(r.pergunta)) {
-        return { texto: 'A pessoa NÃO confirmou. Nada foi alterado.', falhou: false };
-      }
-      try {
-        sessao.aplicar(...r.gestos);
-        editor.selecao.podar(editor.cena);
-        redesenhar();
-        return { texto: `Confirmado e feito. ${r.resumo}`, falhou: false };
-      } catch (e) {
-        return { texto: `O motor recusou: ${String(e)}`, falhou: true };
-      }
-    }
-
+      return aplicar(r.gestos, r.resumo);
+    case 'confirmar':
+      return globalThis.confirm(r.pergunta)
+        ? aplicar(r.gestos, r.resumo)
+        : { texto: 'A pessoa NÃO confirmou. Nada foi alterado.', falhou: false };
     case 'acao':
       return executarAcao(r);
   }
@@ -1038,6 +1045,75 @@ function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string;
         return { texto: `A tela mostra agora o tamanho ${alvo}.`, falhou: false };
       }
 
+      case 'desfazer': {
+        const quantos = Math.max(1, Math.floor(Number(r.argumentos.quantos ?? 1)));
+        let feitos = 0;
+        while (feitos < quantos && sessao.podeDesfazer) {
+          sessao.desfazer();
+          feitos++;
+        }
+        editor.selecao.podar(editor.cena);
+        redesenhar();
+        return {
+          texto:
+            feitos === 0
+              ? 'Não havia nada para desfazer.'
+              : `Voltei ${feitos} passo(s).${feitos < quantos ? ' Não havia mais para voltar.' : ''}`,
+          falhou: false,
+        };
+      }
+
+      case 'refazer': {
+        if (!sessao.podeRefazer) return { texto: 'Não havia nada para refazer.', falhou: false };
+        sessao.refazer();
+        editor.selecao.podar(editor.cena);
+        redesenhar();
+        return { texto: 'Refeito.', falhou: false };
+      }
+
+      case 'descartar_alteracoes': {
+        if (!globalThis.confirm('Jogar fora TODAS as alterações e voltar ao desenho original?')) {
+          return { texto: 'A pessoa NÃO confirmou. Nada foi descartado.', falhou: false };
+        }
+        em<HTMLButtonElement>('#descartar').click();
+        return { texto: 'Tudo descartado; o desenho voltou ao original.', falhou: false };
+      }
+
+      case 'redigitalizar_foto': {
+        if (ultimaFoto === null) {
+          return {
+            texto:
+              'Não há foto carregada nesta sessão. Peça à pessoa para escolher a foto no ' +
+              'painel "Digitalizar foto" e clicar em digitalizar uma vez.',
+            falhou: true,
+          };
+        }
+        const tolMM = Number(r.argumentos.tolerancia_mm);
+        const cor = Number(r.argumentos.sensibilidade_cor);
+        const d = digitalizar(ultimaFoto, {
+          tenantId: TENANT,
+          modeloId: MODELO,
+          autor: 'ia',
+          gerarId: () => gerar(),
+          calibracao: calibracaoDaTela(),
+          ...(Number.isFinite(tolMM) && tolMM > 0 ? { toleranciaUM: Math.round(tolMM * MM) } : {}),
+          ...(Number.isFinite(cor) && cor > 0 ? { limiarCroma: Math.round(cor) } : {}),
+        });
+        const erros = d.problemas.filter((p) => p.gravidade === 'erro');
+        if (erros.length > 0 || d.eventos.length === 0) {
+          return { texto: erros[0]?.mensagem ?? 'Nada foi lido da foto.', falhou: true };
+        }
+        globalThis.localStorage.setItem(CHAVE_DIGITALIZADO, JSON.stringify(d.eventos));
+        apagarRascunho(armazem, TENANT, MODELO);
+        globalThis.setTimeout(() => globalThis.location.reload(), 600);
+        return {
+          texto:
+            `Li a foto de novo: ${d.pecas.length} peça(s), tolerância ` +
+            `${mm(d.toleranciaUM)} mm. A tela vai recarregar com o resultado.`,
+          falhou: false,
+        };
+      }
+
       case 'encaixar': {
         const e = rodarEncaixe();
         if (e.colocacoes.length === 0) {
@@ -1048,6 +1124,28 @@ function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string;
             `${e.colocacoes.length} peça(s) em ${mm(e.comprimentoUsadoUM)} mm de rolo ` +
             `(largura útil ${mm(e.larguraUtilUM)} mm), aproveitamento ` +
             `${(e.aproveitamento * 100).toFixed(1)}%.`,
+          falhou: false,
+        };
+      }
+
+      case 'otimizar_encaixe': {
+        const tentativas = Math.max(1, Math.floor(Number(r.argumentos.tentativas ?? 12)));
+        const simples = encaixar(sessao.modelo, { tamanho: editor.cena.tamanho });
+        if (simples.colocacoes.length === 0) {
+          return { texto: simples.problemas[0]?.mensagem ?? 'Nada encaixado.', falhou: true };
+        }
+        const busca = encaixarBuscando(sessao.modelo, { tamanho: editor.cena.tamanho }, tentativas);
+        guardarEncaixe(busca.melhor);
+        const ganho =
+          ((simples.comprimentoUsadoUM - busca.melhor.comprimentoUsadoUM) /
+            simples.comprimentoUsadoUM) *
+          100;
+        return {
+          texto:
+            `Testei ${busca.tentadas} arranjos. O normal gasta ${mm(simples.comprimentoUsadoUM)} mm ` +
+            `de rolo; o melhor gasta ${mm(busca.melhor.comprimentoUsadoUM)} mm — ` +
+            `${ganho <= 0.05 ? 'não deu para melhorar neste molde' : `${ganho.toFixed(1)}% de economia`}. ` +
+            `Aproveitamento ${(busca.melhor.aproveitamento * 100).toFixed(1)}%.`,
           falhou: false,
         };
       }
@@ -1074,86 +1172,90 @@ function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string;
       }
 
       default:
-        return { texto: `Ação "${r.acao}" não implementada nesta tela.`, falhou: true };
+        return { texto: `Ação "${r.acao}" não existe nesta tela.`, falhou: true };
     }
   } catch (e) {
     return { texto: `Falhou: ${String(e)}`, falhou: true };
   }
 }
 
-/** Uma chamada à API do modelo. */
-async function chamarModelo(chave: string): Promise<{
-  content: Bloco[];
-  stop_reason: string;
-}> {
-  const resposta = await fetch('https://api.anthropic.com/v1/messages', {
+/** Uma chamada ao provedor escolhido. */
+async function chamarModelo(chave: string): Promise<Resposta> {
+  const provedor = provedorAtual();
+  const pedido = {
+    modelo: em<HTMLInputElement>('#ia-modelo-id').value.trim(),
+    instrucoes: `${INSTRUCOES}\n\n${contextoEmTexto({
+      tamanho: editor.cena.tamanho,
+      pecaAtiva: sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? null,
+    })}`,
+    ferramentas: CATALOGO.map((f) => ({
+      nome: f.nome,
+      descricao: f.descricao,
+      esquema: f.esquema,
+    })),
+    conversa,
+  };
+  const base = globalThis.localStorage.getItem(CHAVE_BASE) ?? undefined;
+  const resposta = await fetch(provedor.url(pedido, chave, base), {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': chave,
-      'anthropic-version': '2023-06-01',
-      // Sem isto o navegador é barrado: a API exige o consentimento explícito de
-      // quem chama do lado do cliente.
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: em<HTMLSelectElement>('#ia-modelo').value,
-      max_tokens: 2048,
-      system: `${INSTRUCOES}\n\n${contextoEmTexto({ tamanho: editor.cena.tamanho, pecaAtiva: sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? null })}`,
-      tools: ferramentasParaAPI(),
-      messages: conversa,
-    }),
+    headers: provedor.cabecalhos(chave),
+    body: JSON.stringify(provedor.corpo(pedido)),
   });
   if (!resposta.ok) {
     const corpo = await resposta.text();
-    throw new Error(`A API respondeu ${resposta.status}: ${corpo.slice(0, 300)}`);
+    throw new Error(`${provedor.nome} respondeu ${resposta.status}: ${corpo.slice(0, 300)}`);
   }
-  return (await resposta.json()) as { content: Bloco[]; stop_reason: string };
+  return provedor.ler(await resposta.json());
 }
 
 /**
  * A rodada: manda, e enquanto o modelo pedir ferramenta, executa e devolve.
  *
- * O limite de voltas existe porque um modelo confuso pode entrar em ciclo, e um
- * ciclo aqui gasta o dinheiro do cliente. Oito é folgado para qualquer pedido real.
+ * O limite de voltas existe porque um modelo confuso entra em ciclo, e ciclo aqui
+ * gasta o dinheiro do cliente. Oito é folgado para qualquer pedido real.
  */
 async function rodada(chave: string): Promise<void> {
   for (let volta = 0; volta < 8; volta++) {
     const r = await chamarModelo(chave);
-    conversa.push({ role: 'assistant', content: r.content });
+    conversa.push({ papel: 'assistente', texto: r.texto, chamadas: r.chamadas });
+    if (r.texto !== '') falar('assistente', r.texto);
+    if (r.chamadas.length === 0) return;
 
-    for (const bloco of r.content) {
-      if (bloco.type === 'text' && bloco.text.trim() !== '') falar('assistente', bloco.text.trim());
-    }
-
-    const pedidos = r.content.filter((b): b is BlocoFerramenta => b.type === 'tool_use');
-    if (pedidos.length === 0) return;
-
-    const respostas: unknown[] = [];
-    for (const pedido of pedidos) {
-      const ferramenta = acharFerramenta(pedido.name);
+    const resultados = r.chamadas.map((c) => {
+      const ferramenta = acharFerramenta(c.nome);
       if (ferramenta === null) {
-        anotarFerramenta(`${pedido.name} — não existe`, true);
-        respostas.push({
-          type: 'tool_result',
-          tool_use_id: pedido.id,
-          is_error: true,
-          content: `Não existe a ferramenta "${pedido.name}".`,
-        });
-        continue;
+        anotarFerramenta(`${c.nome} — não existe`, true);
+        return { id: c.id, nome: c.nome, texto: `Não existe a ferramenta "${c.nome}".`, falhou: true };
       }
-      const resultado = executarResultado(ferramenta.executar(sessao.modelo, pedido.input));
-      anotarFerramenta(`${pedido.name}: ${resultado.texto.split('\n')[0]}`, resultado.falhou);
-      respostas.push({
-        type: 'tool_result',
-        tool_use_id: pedido.id,
-        is_error: resultado.falhou,
-        content: resultado.texto,
-      });
-    }
-    conversa.push({ role: 'user', content: respostas });
+      const saida = executarResultado(ferramenta.executar(sessao.modelo, c.argumentos));
+      anotarFerramenta(`${c.nome}: ${saida.texto.split('\n')[0]}`, saida.falhou);
+      return { id: c.id, nome: c.nome, texto: saida.texto, falhou: saida.falhou };
+    });
+    conversa.push({ papel: 'ferramenta', resultados });
   }
   falar('assistente', 'Dei muitas voltas sem chegar a uma resposta. Tente pedir de outro jeito.');
+}
+
+// ------------------------------------------------------------- tela da IA
+
+function preencherProvedores(): void {
+  const alvo = em<HTMLSelectElement>('#ia-provedor');
+  alvo.innerHTML = PROVEDORES.map((p) => `<option value="${p.id}">${p.nome}</option>`).join('');
+  alvo.value = globalThis.localStorage.getItem(CHAVE_PROVEDOR) ?? 'anthropic';
+  aoTrocarProvedor();
+}
+
+function aoTrocarProvedor(): void {
+  const p = provedorAtual();
+  const lista = em<HTMLSelectElement>('#ia-modelo');
+  lista.innerHTML = p.modelos.map((m) => `<option value="${m.id}">${m.nome}</option>`).join('');
+  const guardado = globalThis.localStorage.getItem(`${CHAVE_MODELO_IA}:${p.id}`);
+  const escolhido = guardado ?? p.modelos[0]!.id;
+  lista.value = p.modelos.some((m) => m.id === escolhido) ? escolhido : p.modelos[0]!.id;
+  em<HTMLInputElement>('#ia-modelo-id').value = escolhido;
+  em('#ia-linha-base').hidden = !p.exigeBase;
+  em<HTMLInputElement>('#ia-base').value = globalThis.localStorage.getItem(CHAVE_BASE) ?? '';
+  em('#ia-observacao').textContent = `Chave em ${p.ondePegarAChave}. ${p.observacao}`;
 }
 
 function mostrarChave(): void {
@@ -1162,21 +1264,39 @@ function mostrarChave(): void {
   em('#ia-trocar-chave').hidden = !tem;
   em('#ia-texto').hidden = !tem;
   em('#ia-enviar').hidden = !tem;
-  if (!tem) {
-    iaEstado('Cole a sua chave de API para conectar. Ela fica só neste navegador.');
-  }
+  if (!tem) iaEstado('Escolha o provedor e cole a chave. Ela fica só neste navegador.');
 }
+
+em('#ia-provedor').addEventListener('change', () => {
+  globalThis.localStorage.setItem(CHAVE_PROVEDOR, em<HTMLSelectElement>('#ia-provedor').value);
+  aoTrocarProvedor();
+});
+em('#ia-modelo').addEventListener('change', () => {
+  const id = em<HTMLSelectElement>('#ia-modelo').value;
+  em<HTMLInputElement>('#ia-modelo-id').value = id;
+  globalThis.localStorage.setItem(`${CHAVE_MODELO_IA}:${provedorAtual().id}`, id);
+});
+em('#ia-modelo-id').addEventListener('change', () => {
+  globalThis.localStorage.setItem(
+    `${CHAVE_MODELO_IA}:${provedorAtual().id}`,
+    em<HTMLInputElement>('#ia-modelo-id').value.trim(),
+  );
+});
+em('#ia-base').addEventListener('change', () => {
+  globalThis.localStorage.setItem(CHAVE_BASE, em<HTMLInputElement>('#ia-base').value.trim());
+});
 
 em('#ia-abrir').addEventListener('click', () => {
   em('#ia').hidden = false;
+  preencherProvedores();
   mostrarChave();
   if (em('#ia-conversa').childElementCount === 0) {
     falar(
       'assistente',
       'Oi. Eu opero este programa para você — pode falar como falaria com uma colega.\n\n' +
         'Exemplos: "quantas peças tem aqui?", "põe 1 cm de costura na frente", ' +
-        '"a manga sai em par, 2 vezes", "quanto de tecido gasta num rolo de 1,60 m?", ' +
-        '"exporta o HPGL encaixado".\n\n' +
+        '"a manga sai em par, 2 vezes", "otimiza para gastar menos tecido", ' +
+        '"a borda dessa peça ficou tremida, melhora", "não gostei, desfaz".\n\n' +
         'Não vou chutar medida: se faltar um número, eu pergunto. E tudo o que eu fizer ' +
         'você desfaz com Ctrl+Z.',
     );
@@ -1215,7 +1335,7 @@ async function enviar(): Promise<void> {
 
   caixa.value = '';
   falar('você', pedido, 'pessoa');
-  conversa.push({ role: 'user', content: pedido });
+  conversa.push({ papel: 'pessoa', texto: pedido });
   em<HTMLButtonElement>('#ia-enviar').disabled = true;
   iaEstado('Pensando…');
   try {
@@ -1223,7 +1343,7 @@ async function enviar(): Promise<void> {
     iaEstado('Tudo o que ela fizer some com Ctrl+Z.');
   } catch (e) {
     falar('assistente', `Não consegui falar com o modelo. ${String(e)}`);
-    iaEstado('Falhou. Confira a chave e a internet.');
+    iaEstado('Falhou. Confira a chave, o nome do modelo e a internet.');
   } finally {
     em<HTMLButtonElement>('#ia-enviar').disabled = false;
   }

@@ -24,7 +24,7 @@ import {
 
 import { gerarHpgl } from '@cad/plotter';
 
-import { aplicarEncaixe, encaixar, rotacoesPermitidas, FOLGA_PADRAO_UM } from '../src/index.js';
+import { aplicarEncaixe, encaixar, encaixarBuscando, rotacoesPermitidas, FOLGA_PADRAO_UM } from '../src/index.js';
 
 const TENANT = 'confeccao-a';
 const MODELO = 'mod-1';
@@ -400,5 +400,113 @@ describe('O encaixe cai no HPGL sem conversao', () => {
       FOLGA_PADRAO_UM,
     );
     expect(encaixado.comprimentoUsadoUM).toBeLessThan(enfileirado.comprimentoUsadoUM);
+  });
+});
+
+describe('Otimizar: tentar varias ordens e ficar com a melhor', () => {
+  it('a busca nunca fica pior que a heuristica, e costuma ficar melhor', () => {
+    const modelo = modeloCom([
+      { id: 'p1', nome: 'FRENTE', larguraMM: 400, alturaMM: 700, quantidade: 2 },
+      { id: 'p2', nome: 'COSTAS', larguraMM: 400, alturaMM: 700, quantidade: 2 },
+      { id: 'p3', nome: 'MANGA', larguraMM: 300, alturaMM: 500, quantidade: 2, par: true },
+      { id: 'p4', nome: 'GOLA', larguraMM: 200, alturaMM: 100, quantidade: 4 },
+      { id: 'p5', nome: 'PUNHO', larguraMM: 120, alturaMM: 90, quantidade: 2 },
+    ]);
+    const heuristica = encaixar(modelo);
+    const busca = encaixarBuscando(modelo, {}, 16);
+
+    console.log('--- otimizar ---');
+    console.log(
+      `heuristica (maiores primeiro): ${(umParaMM(heuristica.comprimentoUsadoUM) / 1000).toFixed(3)} m, ` +
+        `aproveitamento ${(heuristica.aproveitamento * 100).toFixed(1)}%`,
+    );
+    console.log(
+      `melhor de ${busca.tentadas} ordens:        ` +
+        `${(umParaMM(busca.melhor.comprimentoUsadoUM) / 1000).toFixed(3)} m, ` +
+        `aproveitamento ${(busca.melhor.aproveitamento * 100).toFixed(1)}%`,
+    );
+    const economia =
+      ((heuristica.comprimentoUsadoUM - busca.melhor.comprimentoUsadoUM) /
+        heuristica.comprimentoUsadoUM) *
+      100;
+    console.log(`economia da busca: ${economia.toFixed(1)}% de rolo`);
+    console.log(
+      `tentativas (m): ${busca.comprimentos.map((c) => (umParaMM(c) / 1000).toFixed(3)).join(', ')}`,
+    );
+
+    expect(busca.melhor.colocacoes).toHaveLength(12);
+    // A tentativa 0 E a heuristica: no pior caso, empata.
+    expect(busca.melhor.comprimentoUsadoUM).toBeLessThanOrEqual(heuristica.comprimentoUsadoUM);
+  });
+
+  it('a busca e deterministica: duas execucoes dao o mesmo encaixe', () => {
+    const moldes: Molde[] = [
+      { id: 'p1', nome: 'A', larguraMM: 400, alturaMM: 700, quantidade: 2 },
+      { id: 'p2', nome: 'B', larguraMM: 300, alturaMM: 500, quantidade: 3 },
+      { id: 'p3', nome: 'C', larguraMM: 200, alturaMM: 120, quantidade: 4 },
+    ];
+    const um = encaixarBuscando(modeloCom(moldes), {}, 10);
+    const outro = encaixarBuscando(modeloCom(moldes), {}, 10);
+    console.log(
+      `duas buscas de 10 ordens: ${(umParaMM(um.melhor.comprimentoUsadoUM) / 1000).toFixed(3)} m ` +
+        `e ${(umParaMM(outro.melhor.comprimentoUsadoUM) / 1000).toFixed(3)} m | identicas: ` +
+        `${JSON.stringify(um.melhor.colocacoes) === JSON.stringify(outro.melhor.colocacoes)}`,
+    );
+    expect(JSON.stringify(outro.melhor.colocacoes)).toBe(JSON.stringify(um.melhor.colocacoes));
+  });
+});
+
+describe('Giro fino: onde ha folga de tecido de verdade', () => {
+  it('peca de giro LIVRE ganha angulos, peca de giro 90 nao', () => {
+    const livre = Object.values(
+      modeloCom([{ id: 'p', nome: 'P', larguraMM: 100, alturaMM: 100, giro: 'livre' }]).pecas,
+    )[0]!;
+    const noventa = Object.values(
+      modeloCom([{ id: 'p', nome: 'P', larguraMM: 100, alturaMM: 100, giro: '90' }]).pecas,
+    )[0]!;
+    console.log('--- passo de giro ---');
+    console.log(`livre, passo 90: ${rotacoesPermitidas(livre, 90).join(', ')}`);
+    console.log(`livre, passo 30: ${rotacoesPermitidas(livre, 30).join(', ')}`);
+    console.log(`giro "90", passo 30: ${rotacoesPermitidas(noventa, 30).join(', ')} (nao muda)`);
+    expect(rotacoesPermitidas(livre, 30)).toHaveLength(12);
+    // "90" quer dizer que pode DEITAR, nao que pode ficar enviesada.
+    expect(rotacoesPermitidas(noventa, 30)).toEqual([0, 90, 180, 270]);
+  });
+
+  it('angulo fino SOZINHO piora — e por isso quem escolhe e a busca', () => {
+    // Duas tiras de 1700 x 100 mm num rolo de 1,58 m. De pe, lado a lado, cabem as
+    // duas. Enviesadas a 30 graus, a caixa de cada uma encolhe — e a primeira ocupa
+    // a faixa de um jeito que atravanca a segunda.
+    const moldes: Molde[] = [
+      { id: 'p1', nome: 'TIRA', larguraMM: 1700, alturaMM: 100, quantidade: 2, giro: 'livre' },
+    ];
+    const grosso = encaixar(modeloCom(moldes), { passoDeGiroGraus: 90 });
+    const fino = encaixar(modeloCom(moldes), { passoDeGiroGraus: 30 });
+
+    console.log('--- a tira de 1700 mm num rolo de 1580 uteis ---');
+    console.log(
+      'passo 90 (0, 90, 180, 270): ' + grosso.colocacoes.length + ' colocada(s)' +
+        (grosso.problemas[0] ? ', ' + grosso.problemas[0].codigo : ''),
+    );
+    console.log(
+      'passo 30: ' + fino.colocacoes.length + ' colocada(s), angulos ' +
+        fino.colocacoes.map((c) => c.rotacaoGraus).join(' e ') + ' graus, ' +
+        (umParaMM(fino.comprimentoUsadoUM) / 1000).toFixed(3) + ' m de rolo',
+    );
+
+    // O achado: angulo fino SOZINHO piora. A escolha de angulo e gulosa peca a
+    // peca — a primeira tira acha bonito deitar enviesada, encolhe a propria caixa
+    // e atravanca a faixa para a segunda.
+    expect(fino.comprimentoUsadoUM).toBeGreaterThan(grosso.comprimentoUsadoUM);
+
+    // E por isso que o passo fino nao e botao solto: quem escolhe e a busca.
+    const busca = encaixarBuscando(modeloCom(moldes), {}, 9);
+    console.log(
+      'busca (ordens x passos): ' + (umParaMM(busca.melhor.comprimentoUsadoUM) / 1000).toFixed(3) +
+        ' m — nunca pior que o melhor dos dois',
+    );
+    expect(busca.melhor.comprimentoUsadoUM).toBeLessThanOrEqual(
+      Math.min(grosso.comprimentoUsadoUM, fino.comprimentoUsadoUM),
+    );
   });
 });

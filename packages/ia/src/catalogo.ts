@@ -505,6 +505,79 @@ const enquadrar = acao(
   'Vista enquadrada.',
 );
 
+
+const desfazer = acao(
+  'desfazer',
+  'Volta atrás uma ou mais alterações, como o Ctrl+Z. Use quando a pessoa disser que não ' +
+    'gostou, que ficou pior, ou que quer voltar. Cada rodada sua é um passo — então "desfaz ' +
+    'o que você fez" costuma ser 1.',
+  {
+    type: 'object',
+    properties: {
+      quantos: { type: 'number', description: 'Quantos passos voltar. Padrão 1.' },
+    },
+    required: [],
+  },
+  'Desfeito.',
+);
+
+const refazer = acao(
+  'refazer',
+  'Refaz o que foi desfeito, como o Ctrl+Shift+Z. Use se a pessoa se arrepender de ter voltado.',
+  { type: 'object', properties: {}, required: [] },
+  'Refeito.',
+);
+
+const descartarTudo = acao(
+  'descartar_alteracoes',
+  'Joga fora TODAS as alterações pendentes e volta o desenho ao estado em que ele estava ' +
+    'quando foi aberto. DESTRUTIVO e amplo: use só quando a pessoa disser claramente que ' +
+    'quer recomeçar do zero, e avise antes que tudo se perde.',
+  { type: 'object', properties: {}, required: [] },
+  'Tudo descartado; o desenho voltou ao original.',
+);
+
+const redigitalizar = acao(
+  'redigitalizar_foto',
+  'Lê a MESMA foto de novo com outros ajustes, para melhorar contorno tremido ou borda ' +
+    'errada. Dois botões: "detalhe" (tolerância em mm — menor guarda mais detalhe e mais ' +
+    'tremido; maior alisa e come detalhe) e "sensibilidade da cor" (quanto o papel precisa ' +
+    'puxar para o marrom; menor pega papel mais claro ou em sombra, maior evita pegar o ' +
+    'fundo). Se a pessoa reclamar de "borda estranha", "sobrou pedaço" ou "faltou pedaço", ' +
+    'é esta a ferramenta.',
+  {
+    type: 'object',
+    properties: {
+      tolerancia_mm: {
+        type: 'number',
+        description: 'Tolerância do contorno, em mm. Típico 1 a 3. Menor = mais detalhe.',
+      },
+      sensibilidade_cor: {
+        type: 'number',
+        description: 'Quanto o papel puxa para o marrom, de 20 a 120. Padrão 60.',
+      },
+    },
+    required: [],
+  },
+  'Foto lida de novo.',
+);
+
+const otimizar = acao(
+  'otimizar_encaixe',
+  'Procura o encaixe que gasta MENOS TECIDO: roda o encaixe várias vezes, com ordens de ' +
+    'colocação e ângulos diferentes, e fica com o melhor. Nunca sai pior que o encaixe ' +
+    'normal. Use quando a pessoa pedir para economizar tecido, sobrar mais espaço ou ' +
+    'aproveitar melhor o rolo. Mais tentativas gastam mais tempo de conta.',
+  {
+    type: 'object',
+    properties: {
+      tentativas: { type: 'number', description: 'Quantas ordens tentar. Padrão 12, máximo 64.' },
+    },
+    required: [],
+  },
+  'Encaixe otimizado.',
+);
+
 /** Tudo o que a IA sabe fazer. A ordem é a que aparece para o modelo. */
 export const CATALOGO: readonly Ferramenta[] = [
   descrever,
@@ -523,6 +596,11 @@ export const CATALOGO: readonly Ferramenta[] = [
   exportar,
   trocarTamanho,
   enquadrar,
+  desfazer,
+  refazer,
+  descartarTudo,
+  redigitalizar,
+  otimizar,
 ];
 
 export function acharFerramenta(nome: string): Ferramenta | null {

@@ -195,7 +195,9 @@
   .ia-linha { display: flex; gap: 8px; align-items: center; }
   .ia-linha .nota { flex: 1; margin: 0; }
   .ia-linha button { width: auto; padding: 8px 16px; }
-  #ia-chave { flex: 1; font: 500 12px "IBM Plex Mono", monospace; }
+  #ia-chave, #ia-base, #ia-modelo-id { font: 500 12px "IBM Plex Mono", monospace; }
+  #ia-chave { flex: 1; }
+  #ia-observacao { font-size: 11px; }
 
   /* O risco: a faixa do tecido em tamanho de tela, por cima de tudo. */
   #risco {
@@ -219,16 +221,21 @@
     <div class="ia-corpo">
       <div class="ia-topo">
         <h2>Assistente</h2>
-        <select id="ia-modelo" title="Qual modelo responde">
-          <option value="claude-sonnet-5">Sonnet 5 — rápido</option>
-          <option value="claude-opus-5">Opus 5 — mais capaz</option>
-        </select>
+        <select id="ia-provedor" title="De quem é o modelo"></select>
+        <select id="ia-modelo" title="Qual modelo responde"></select>
         <button id="ia-fechar" type="button">fechar</button>
       </div>
 
       <div id="ia-conversa"></div>
 
       <div id="ia-entrada">
+        <p class="nota" id="ia-observacao"></p>
+        <div class="ia-linha" id="ia-linha-base" hidden>
+          <input id="ia-base" type="text" placeholder="endereço base — ex.: https://api.deepseek.com/v1" style="flex:1" />
+        </div>
+        <div class="ia-linha">
+          <input id="ia-modelo-id" type="text" title="Nome exato do modelo" style="flex:1" />
+        </div>
         <div class="ia-linha" id="ia-linha-chave">
           <input id="ia-chave" type="password" placeholder="cole aqui a sua chave de API" />
           <button id="ia-guardar-chave" type="button">conectar</button>
