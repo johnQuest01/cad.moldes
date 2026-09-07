@@ -342,6 +342,7 @@ export function encaixarBuscando(
   modelo: Modelo,
   opcoes: OpcoesDeEncaixe = {},
   tentativas = 12,
+  aoProgredir?: (feitas: number, total: number, melhorUM: number) => void,
 ): { melhor: Encaixe; tentadas: number; comprimentos: number[] } {
   const quantas = Math.max(1, Math.min(64, Math.floor(tentativas)));
   const comprimentos: number[] = [];
@@ -371,6 +372,10 @@ export function encaixarBuscando(
       (e.colocacoes.length === melhor.colocacoes.length &&
         e.comprimentoUsadoUM < melhor.comprimentoUsadoUM);
     if (melhorAteAqui) melhor = e;
+    // O aviso de progresso e opcional e sai DEPOIS de cada tentativa: e o que
+    // permite a barra andar e o botao de cancelar existir. Sem ele a busca e uma
+    // caixa preta de quinze segundos.
+    aoProgredir?.(i + 1, quantas, melhor?.comprimentoUsadoUM ?? 0);
   }
 
   return { melhor: melhor as Encaixe, tentadas: quantas, comprimentos };

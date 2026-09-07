@@ -16,7 +16,7 @@ diz onde o código está e traz cada decisão com o número medido que a sustent
 | `@cad/api` | backend Fastify. O tenant sai de um claim de JWT assinado |
 | `@cad/editor` | o comportamento do editor: sessão, câmera, snap, seleção, ferramentas. Puro, sem DOM |
 | `@cad/editor-pixi` | render e entrada, em PixiJS 8 |
-| `app/` | o editor |
+| `app/` | o editor. O encaixe e a digitalizacao rodam num Web Worker: a tela nao congela |
 | `@cad/dxf` | importar e exportar DXF-AAMA/ASTM |
 | `@cad/plotter` | gerar HPGL para a plotadora e a cortadora |
 | `@cad/encaixe` | encaixar as peças na faixa do tecido, por No-Fit Polygon |

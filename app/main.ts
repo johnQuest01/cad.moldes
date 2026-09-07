@@ -36,7 +36,7 @@ import {
 import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pixi';
 import { exportarDxf } from '@cad/dxf';
 import { gerarHpgl } from '@cad/plotter';
-import { aplicarEncaixe, encaixar, encaixarBuscando, type Encaixe } from '@cad/encaixe';
+import { aplicarEncaixe, type Encaixe } from '@cad/encaixe';
 import { calibrarComObjeto, digitalizar, objetoConhecidoMM, type Calibracao } from '@cad/foto';
 import {
   CATALOGO,
@@ -67,6 +67,7 @@ import {
 } from '@cad/motor';
 
 import { ARESTAS, MODELO, PECA, TENANT, logDaBlusa } from './peca.js';
+import type { Aviso, Pedido as PedidoAoTrabalhador } from './trabalhador.js';
 
 // ------------------------------------------------------------------ estado
 
@@ -446,11 +447,101 @@ function guardarEncaixe(e: Encaixe): Encaixe {
   return e;
 }
 
-function rodarEncaixe(): Encaixe {
-  return guardarEncaixe(encaixar(sessao.modelo, { tamanho: editor.cena.tamanho }));
+// ------------------------------------------------------- o trabalhador
+
+/**
+ * A ponte para a linha de execução de trás.
+ *
+ * Um trabalho por vez, de propósito: dois encaixes ao mesmo tempo disputariam o
+ * mesmo `encaixeAtual` e a tela mostraria um enquanto o HPGL baixaria o outro.
+ * Começar um novo **cancela** o anterior, e cancelar aqui é `terminate()` — bruto e
+ * imediato, que é o que se quer de um botão de cancelar.
+ */
+let trabalhoAtual: Worker | null = null;
+
+function cancelarTrabalho(): void {
+  trabalhoAtual?.terminate();
+  trabalhoAtual = null;
+  em('#cancelar-trabalho').hidden = true;
 }
 
-const encaixeVigente = (): Encaixe => encaixeAtual ?? rodarEncaixe();
+function pedirAoTrabalhador<T extends Aviso>(
+  pedido: PedidoAoTrabalhador,
+  aoProgresso?: (feitas: number, total: number, melhorUM: number) => void,
+): Promise<T> {
+  cancelarTrabalho();
+  const trabalhador = new Worker(new URL('./trabalhador.ts', import.meta.url), {
+    type: 'module',
+  });
+  trabalhoAtual = trabalhador;
+  em('#cancelar-trabalho').hidden = false;
+
+  return new Promise<T>((resolver, rejeitar) => {
+    trabalhador.addEventListener('message', (evento: MessageEvent<Aviso>) => {
+      const aviso = evento.data;
+      if (aviso.tipo === 'progresso') {
+        aoProgresso?.(aviso.feitas, aviso.total, aviso.melhorUM);
+        return;
+      }
+      trabalhador.terminate();
+      if (trabalhoAtual === trabalhador) cancelarTrabalho();
+      if (aviso.tipo === 'falhou') rejeitar(new Error(aviso.mensagem));
+      else resolver(aviso as T);
+    });
+    trabalhador.addEventListener('error', (e) => {
+      trabalhador.terminate();
+      if (trabalhoAtual === trabalhador) cancelarTrabalho();
+      rejeitar(new Error(`O trabalhador falhou: ${e.message}`));
+    });
+    trabalhador.postMessage(pedido);
+  });
+}
+
+em('#cancelar-trabalho').addEventListener('click', () => {
+  cancelarTrabalho();
+  em('#estado-encaixe').textContent = 'Cancelado.';
+  em('#estado-foto').textContent = 'Cancelado.';
+});
+
+/**
+ * Roda o encaixe rápido no trabalhador.
+ *
+ * Devolve promessa: quem chama espera. A tela não congela no caminho — foi para
+ * isso que o trabalhador existe.
+ */
+async function rodarEncaixe(): Promise<Encaixe> {
+  em('#estado-encaixe').textContent = 'Encaixando…';
+  const r = await pedirAoTrabalhador<Extract<Aviso, { tipo: 'encaixe' }>>({
+    tarefa: 'encaixar',
+    log: sessao.log,
+    tamanho: editor.cena.tamanho,
+  });
+  return guardarEncaixe(r.encaixe);
+}
+
+/** O encaixe otimizado, com progresso e cancelamento. */
+async function otimizarEncaixe(
+  tentativas: number,
+): Promise<{ melhor: Encaixe; simplesUM: number }> {
+  const r = await pedirAoTrabalhador<Extract<Aviso, { tipo: 'encaixe' }>>(
+    { tarefa: 'otimizar', log: sessao.log, tamanho: editor.cena.tamanho, tentativas },
+    (feitas, total, melhorUM) => {
+      em('#estado-encaixe').textContent =
+        `Procurando o melhor arranjo… ${feitas} de ${total} | melhor até agora: ` +
+        `${mm(melhorUM)} mm de rolo`;
+    },
+  );
+  guardarEncaixe(r.encaixe);
+  return { melhor: r.encaixe, simplesUM: r.simplesUM };
+}
+
+/**
+ * O encaixe da vez, calculando se ainda não houver um.
+ *
+ * Ficou assíncrono junto com o resto: quem quiser o risco ou o HPGL espera o
+ * encaixe terminar, e enquanto espera a tela continua respondendo.
+ */
+const encaixeVigente = async (): Promise<Encaixe> => encaixeAtual ?? (await rodarEncaixe());
 
 /**
  * O risco em SVG: a faixa do tecido e a linha de CORTE de cada peca, onde o
@@ -483,7 +574,7 @@ function svgDoRisco(encaixe: Encaixe): string {
 }
 
 em('#encaixar').addEventListener('click', () => {
-  rodarEncaixe();
+  void rodarEncaixe();
 });
 
 /**
@@ -494,13 +585,15 @@ em('#encaixar').addEventListener('click', () => {
  * baixar ali do lado.
  */
 em('#ver-risco').addEventListener('click', () => {
-  const encaixe = encaixeVigente();
+  void (async () => {
+  const encaixe = await encaixeVigente();
   em('#risco-papel').innerHTML = svgDoRisco(encaixe);
   em('#risco-conta').textContent =
     `${encaixe.colocacoes.length} peça(s) · ${mm(encaixe.larguraUtilUM)} × ` +
     `${mm(encaixe.comprimentoUsadoUM)} mm · aproveitamento ` +
     `${(encaixe.aproveitamento * 100).toFixed(1)}%`;
   em('#risco').hidden = false;
+  })();
 });
 
 const fecharRisco = (): void => {
@@ -512,11 +605,14 @@ em('#risco').addEventListener('click', (evento) => {
   if (evento.target === em('#risco') || evento.target === em('#risco-papel')) fecharRisco();
 });
 em('#risco-baixar').addEventListener('click', () => {
-  baixar(`${MODELO}-${editor.cena.tamanho}-risco.svg`, svgDoRisco(encaixeVigente()));
+  void (async () => {
+    baixar(`${MODELO}-${editor.cena.tamanho}-risco.svg`, svgDoRisco(await encaixeVigente()));
+  })();
 });
 
 em('#exportar-hpgl-encaixe').addEventListener('click', () => {
-  const encaixe = encaixeVigente();
+  void (async () => {
+  const encaixe = await encaixeVigente();
   const postas = aplicarEncaixe(sessao.modelo, encaixe, editor.cena.tamanho).map((c) => c.peca);
   const saida = gerarHpgl(sessao.modelo, {
     tamanho: editor.cena.tamanho,
@@ -527,6 +623,7 @@ em('#exportar-hpgl-encaixe').addEventListener('click', () => {
   em('#estado-encaixe').textContent =
     `HPGL encaixado: ${saida.pecasPlotadas} peça(s), ${mm(saida.comprimentoUsadoUM)} mm de rolo` +
     (saida.problemas.length > 0 ? ` | ${saida.problemas.length} problema(s)` : '');
+  })();
 });
 
 // ------------------------------------------------------- digitalizar por foto
@@ -584,7 +681,7 @@ em('#digitalizar').addEventListener('click', () => {
     em('#estado-foto').textContent = 'Escolha a foto primeiro.';
     return;
   }
-  em('#estado-foto').textContent = 'Lendo a foto…';
+  em('#estado-foto').textContent = 'Lendo a foto… (pode cancelar)';
 
   void (async () => {
     try {
@@ -593,12 +690,16 @@ em('#digitalizar').addEventListener('click', () => {
       // estranha", a IA tenta de novo na MESMA foto com outros ajustes, sem obrigar
       // ninguém a procurar o arquivo outra vez.
       ultimaFoto = imagem;
-      const d = digitalizar(imagem, {
+      // No trabalhador: uma foto de 10 Mpx leva ~1 s, e um segundo de tela
+      // congelada logo depois de escolher o arquivo parece programa travado.
+      const { saida: d } = await pedirAoTrabalhador<Extract<Aviso, { tipo: 'digitalizacao' }>>({
+        tarefa: 'digitalizar',
+        largura: imagem.largura,
+        altura: imagem.altura,
+        dados: imagem.dados,
+        calibracao: calibracaoDaTela(),
         tenantId: TENANT,
         modeloId: MODELO,
-        autor: 'modelista',
-        gerarId: () => gerar(),
-        calibracao: calibracaoDaTela(),
       });
 
       const erros = d.problemas.filter((p) => p.gravidade === 'erro');
@@ -1000,7 +1101,7 @@ const provedorAtual = (): Provedor =>
 /** A ferramenta que esta sendo executada — e a licenca dela que a guarda usa. */
 let ferramentaAtual: { licenca?: typeof SEM_LICENCA } | null = null;
 
-function executarResultado(r: Resultado): { texto: string; falhou: boolean } {
+async function executarResultado(r: Resultado): Promise<{ texto: string; falhou: boolean }> {
   const aplicar = (
     gestos: readonly { tipo: string; pecaId: string | null; payload: unknown }[],
     resumo: string,
@@ -1060,12 +1161,14 @@ function executarResultado(r: Resultado): { texto: string; falhou: boolean } {
         ? aplicar(r.gestos, r.resumo)
         : { texto: 'A pessoa NÃO confirmou. Nada foi alterado.', falhou: false };
     case 'acao':
-      return executarAcao(r);
+      return await executarAcao(r);
   }
 }
 
 /** As ações que são da aplicação, não do modelo. */
-function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string; falhou: boolean } {
+async function executarAcao(
+  r: Extract<Resultado, { tipo: 'acao' }>,
+): Promise<{ texto: string; falhou: boolean }> {
   try {
     switch (r.acao) {
       case 'enquadrar':
@@ -1156,7 +1259,7 @@ function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string;
       }
 
       case 'encaixar': {
-        const e = rodarEncaixe();
+        const e = await rodarEncaixe();
         if (e.colocacoes.length === 0) {
           return { texto: e.problemas[0]?.mensagem ?? 'Nada encaixado.', falhou: true };
         }
@@ -1171,22 +1274,20 @@ function executarAcao(r: Extract<Resultado, { tipo: 'acao' }>): { texto: string;
 
       case 'otimizar_encaixe': {
         const tentativas = Math.max(1, Math.floor(Number(r.argumentos.tentativas ?? 12)));
-        const simples = encaixar(sessao.modelo, { tamanho: editor.cena.tamanho });
-        if (simples.colocacoes.length === 0) {
-          return { texto: simples.problemas[0]?.mensagem ?? 'Nada encaixado.', falhou: true };
+        // Roda no trabalhador, com progresso na tela e botão de cancelar. Quinze
+        // segundos de tela congelada seriam quinze segundos em que a pessoa acha
+        // que o programa travou.
+        const { melhor, simplesUM } = await otimizarEncaixe(tentativas);
+        if (melhor.colocacoes.length === 0) {
+          return { texto: melhor.problemas[0]?.mensagem ?? 'Nada encaixado.', falhou: true };
         }
-        const busca = encaixarBuscando(sessao.modelo, { tamanho: editor.cena.tamanho }, tentativas);
-        guardarEncaixe(busca.melhor);
-        const ganho =
-          ((simples.comprimentoUsadoUM - busca.melhor.comprimentoUsadoUM) /
-            simples.comprimentoUsadoUM) *
-          100;
+        const ganho = simplesUM === 0 ? 0 : ((simplesUM - melhor.comprimentoUsadoUM) / simplesUM) * 100;
         return {
           texto:
-            `Testei ${busca.tentadas} arranjos. O normal gasta ${mm(simples.comprimentoUsadoUM)} mm ` +
-            `de rolo; o melhor gasta ${mm(busca.melhor.comprimentoUsadoUM)} mm — ` +
+            `Testei ${tentativas} arranjos. O normal gasta ${mm(simplesUM)} mm de rolo; ` +
+            `o melhor gasta ${mm(melhor.comprimentoUsadoUM)} mm — ` +
             `${ganho <= 0.05 ? 'não deu para melhorar neste molde' : `${ganho.toFixed(1)}% de economia`}. ` +
-            `Aproveitamento ${(busca.melhor.aproveitamento * 100).toFixed(1)}%.`,
+            `Aproveitamento ${(melhor.aproveitamento * 100).toFixed(1)}%.`,
           falhou: false,
         };
       }
@@ -1262,18 +1363,28 @@ async function rodada(chave: string): Promise<void> {
     if (r.texto !== '') falar('assistente', r.texto);
     if (r.chamadas.length === 0) return;
 
-    const resultados = r.chamadas.map((c) => {
+    // Uma ferramenta de cada vez, em sequência, e não em paralelo: cada uma vê o
+    // modelo que a anterior deixou. Duas rodando juntas sobre a mesma sessão
+    // fariam a segunda decidir olhando um estado que já mudou.
+    const resultados: { id: string; nome: string; texto: string; falhou: boolean }[] = [];
+    for (const c of r.chamadas) {
       const ferramenta = acharFerramenta(c.nome);
       if (ferramenta === null) {
         anotarFerramenta(`${c.nome} — não existe`, true);
-        return { id: c.id, nome: c.nome, texto: `Não existe a ferramenta "${c.nome}".`, falhou: true };
+        resultados.push({
+          id: c.id,
+          nome: c.nome,
+          texto: `Não existe a ferramenta "${c.nome}".`,
+          falhou: true,
+        });
+        continue;
       }
       ferramentaAtual = ferramenta;
-      const saida = executarResultado(ferramenta.executar(sessao.modelo, c.argumentos));
+      const saida = await executarResultado(ferramenta.executar(sessao.modelo, c.argumentos));
       ferramentaAtual = null;
       anotarFerramenta(`${c.nome}: ${saida.texto.split('\n')[0]}`, saida.falhou);
-      return { id: c.id, nome: c.nome, texto: saida.texto, falhou: saida.falhou };
-    });
+      resultados.push({ id: c.id, nome: c.nome, texto: saida.texto, falhou: saida.falhou });
+    }
     conversa.push({ papel: 'ferramenta', resultados });
   }
   falar('assistente', 'Dei muitas voltas sem chegar a uma resposta. Tente pedir de outro jeito.');
