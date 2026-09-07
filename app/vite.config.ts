@@ -19,6 +19,7 @@ export default defineConfig({
       '@cad/dxf': fonte('dxf'),
       '@cad/plotter': fonte('plotter'),
       '@cad/encaixe': fonte('encaixe'),
+      '@cad/foto': fonte('foto'),
     },
   },
   build: { outDir: 'dist', emptyOutDir: true },

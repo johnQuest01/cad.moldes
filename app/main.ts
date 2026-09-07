@@ -37,12 +37,14 @@ import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pix
 import { exportarDxf } from '@cad/dxf';
 import { gerarHpgl } from '@cad/plotter';
 import { aplicarEncaixe, encaixar, type Encaixe } from '@cad/encaixe';
+import { digitalizar, type Calibracao } from '@cad/foto';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   type Id,
   LARGURA_PADRAO_DO_PIQUE_UM,
   MM,
   criarGeradorMonotonico,
+  type Evento,
   medirAresta,
   offsetMargem,
   umParaMM,
@@ -71,7 +73,27 @@ const armazem = armazemDoNavegador(globalThis.localStorage);
  * estivesse salvo —, porque salvo mesmo so depois que o servidor confirmar (E2).
  */
 const guardado = lerRascunho(armazem, TENANT, MODELO);
-const sessao = new Sessao(logDaBlusa(), {
+
+/**
+ * O log de abertura: o da blusa de exemplo, ou o que veio de uma foto.
+ *
+ * Digitalizar troca o modelo INTEIRO, e trocar em pe seria reconstruir sessao,
+ * editor, camera, cena e todos os paineis. Guardar o log e recarregar faz o mesmo
+ * pelo caminho que ja existe e ja e testado.
+ */
+function logDeAbertura(): Evento[] {
+  const digitalizado = globalThis.localStorage.getItem('cad.moldes:log-digitalizado');
+  if (digitalizado === null) return logDaBlusa();
+  try {
+    const eventos = JSON.parse(digitalizado) as Evento[];
+    if (Array.isArray(eventos) && eventos.length > 0) return eventos;
+  } catch {
+    // Log guardado ilegivel: cai no exemplo em vez de abrir a tela em branco.
+  }
+  return logDaBlusa();
+}
+
+const sessao = new Sessao(logDeAbertura(), {
   tenantId: TENANT,
   modeloId: MODELO,
   autor: 'modelista',
@@ -158,7 +180,8 @@ globalThis
 
 // ------------------------------------------------------------------ paineis
 
-const em = (seletor: string) => document.querySelector(seletor) as HTMLElement;
+const em = <T extends HTMLElement = HTMLElement>(seletor: string): T =>
+  document.querySelector(seletor) as T;
 const mm = (um: number) => umParaMM(Math.round(um)).toFixed(1);
 
 function atualizarPaineis(): void {
@@ -477,6 +500,101 @@ em('#exportar-hpgl-encaixe').addEventListener('click', () => {
   em('#estado-encaixe').textContent =
     `HPGL encaixado: ${saida.pecasPlotadas} peça(s), ${mm(saida.comprimentoUsadoUM)} mm de rolo` +
     (saida.problemas.length > 0 ? ` | ${saida.problemas.length} problema(s)` : '');
+});
+
+// ------------------------------------------------------- digitalizar por foto
+
+/**
+ * O log digitalizado, guardado no navegador entre recargas.
+ *
+ * Trocar o modelo inteiro em pé é reconstruir sessão, editor, câmera, cena e todos
+ * os painéis. Guardar o log e recarregar a página faz a mesma coisa com uma linha e
+ * sem um caminho paralelo para dar manutenção — e o caminho de abrir já existe e
+ * está testado.
+ */
+const CHAVE_DIGITALIZADO = 'cad.moldes:log-digitalizado';
+
+function calibracaoDaTela(): Calibracao {
+  const ler = (id: string): number => Math.round(Number(em<HTMLInputElement>(id).value) * MM);
+  return {
+    id: 'cal-atelie',
+    tenantId: TENANT,
+    nome: 'quadro do ateliê',
+    larguraUM: ler('#cal-largura'),
+    alturaUM: ler('#cal-altura'),
+    diagonal1UM: ler('#cal-diag1'),
+    diagonal2UM: ler('#cal-diag2'),
+  };
+}
+
+/** Decodifica a foto pelo navegador: o pacote `@cad/foto` não lê JPEG de propósito. */
+async function lerImagem(arquivo: File): Promise<{
+  largura: number;
+  altura: number;
+  dados: Uint8ClampedArray;
+}> {
+  const bitmap = await createImageBitmap(arquivo);
+  // As medidas saem ANTES do `close`: bitmap fechado devolve zero, e a foto
+  // inteira virava uma imagem 0 × 0 sem um erro sequer pelo caminho — a
+  // digitalização só dizia "nenhuma marca de borda encontrada".
+  const largura = bitmap.width;
+  const altura = bitmap.height;
+  const tela = document.createElement('canvas');
+  tela.width = largura;
+  tela.height = altura;
+  const ctx = tela.getContext('2d');
+  if (ctx === null) throw new Error('O navegador não deu contexto 2D para ler a foto.');
+  ctx.drawImage(bitmap, 0, 0);
+  const dados = ctx.getImageData(0, 0, largura, altura);
+  bitmap.close();
+  return { largura, altura, dados: dados.data };
+}
+
+em('#digitalizar').addEventListener('click', () => {
+  const entrada = em<HTMLInputElement>('#foto-arquivo');
+  const arquivo = entrada.files?.[0];
+  if (arquivo === undefined) {
+    em('#estado-foto').textContent = 'Escolha a foto primeiro.';
+    return;
+  }
+  em('#estado-foto').textContent = 'Lendo a foto…';
+
+  void (async () => {
+    try {
+      const imagem = await lerImagem(arquivo);
+      const d = digitalizar(imagem, {
+        tenantId: TENANT,
+        modeloId: MODELO,
+        autor: 'modelista',
+        gerarId: () => gerar(),
+        calibracao: calibracaoDaTela(),
+      });
+
+      const erros = d.problemas.filter((p) => p.gravidade === 'erro');
+      if (erros.length > 0 || d.eventos.length === 0) {
+        // Recusa é o comportamento certo (I9): nada entra pela metade.
+        em('#estado-foto').textContent = `Recusado. ${erros[0]?.mensagem ?? 'Sem peças na foto.'}`;
+        return;
+      }
+
+      globalThis.localStorage.setItem(CHAVE_DIGITALIZADO, JSON.stringify(d.eventos));
+      apagarRascunho(armazem, TENANT, MODELO);
+      const avisos = d.problemas.filter((p) => p.gravidade === 'aviso');
+      em('#estado-foto').textContent =
+        `${d.pecas.length} peça(s), ${mm(d.umPorPixel)} mm por pixel` +
+        (avisos.length > 0 ? ` | ${avisos.length} aviso(s)` : '') +
+        ' — recarregando…';
+      globalThis.setTimeout(() => globalThis.location.reload(), 400);
+    } catch (erro) {
+      em('#estado-foto').textContent = `Não deu para ler a foto: ${String(erro)}`;
+    }
+  })();
+});
+
+em('#voltar-exemplo').addEventListener('click', () => {
+  globalThis.localStorage.removeItem(CHAVE_DIGITALIZADO);
+  apagarRascunho(armazem, TENANT, MODELO);
+  globalThis.location.reload();
 });
 
 em('#duplicar').addEventListener('click', () => {

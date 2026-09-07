@@ -126,6 +126,10 @@
   .nota { margin: 0; color: var(--fraco); font-size: 11.5px; line-height: 1.6; }
   [hidden] { display: none !important; }
 
+  .grade-quadro { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .grade-quadro label { display: grid; gap: 2px; color: var(--fraco); font-size: 11px; }
+  .grade-quadro input { width: 100%; }
+
   /* O risco: a faixa do tecido em tamanho de tela, por cima de tudo. */
   #risco {
     position: fixed; inset: 0; z-index: 50; display: grid; grid-template-rows: auto 1fr;
@@ -333,6 +337,26 @@
           <button id="exportar-hpgl" type="button">HPGL</button>
         </div>
         <p class="nota" id="estado-salvo" style="margin-top:6px"></p>
+      </div>
+
+      <div>
+        <h2>Digitalizar foto</h2>
+        <p class="nota">
+          Meça o quadro <strong>de centro a centro</strong> das marcas dos cantos — não a borda
+          externa. As diagonais são a conferência: se não fecharem, não é retângulo.
+        </p>
+        <div class="grade-quadro">
+          <label>largura<input id="cal-largura" type="number" step="1" value="1380" /></label>
+          <label>altura<input id="cal-altura" type="number" step="1" value="792" /></label>
+          <label>diagonal 1<input id="cal-diag1" type="number" step="1" value="1591" /></label>
+          <label>diagonal 2<input id="cal-diag2" type="number" step="1" value="1591" /></label>
+        </div>
+        <input id="foto-arquivo" type="file" accept="image/*" style="margin-top:6px;width:100%" />
+        <div class="fileira" style="margin-top:5px">
+          <button id="digitalizar" type="button">digitalizar</button>
+          <button id="voltar-exemplo" type="button">modelo de exemplo</button>
+        </div>
+        <p class="nota" id="estado-foto" style="margin-top:6px"></p>
       </div>
 
       <div>
