@@ -9,14 +9,15 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @cad/motor && npm run build -w @cad/persistencia && npm run build -w @cad/editor && npm run build -w @cad/dxf && npm run build -w @cad/plotter && npm run build -w @cad/encaixe && npm run build -w @cad/foto && npm run build -w @cad/ia && npm run build -w @cad/editor-pixi && npm run build -w @cad/api",
     "verificar-dist": "node scripts/verificar-dist.mjs",
     "figuras": "node scripts/gerar-figuras.mjs",
-    "ci": "npm run typecheck && npm test && npm run build && npm run verificar-dist && npm run figuras && npm run demo:build && npm run app:build",
+    "ci": "npm run build && npm run typecheck && npm run typecheck:app && npm test && npm run verificar-dist && npm run figuras && npm run demo:build && npm run app:build",
     "demo": "vite --config demo/vite.config.ts",
     "demo:build": "vite build --config demo/vite.config.ts",
     "app": "vite --config app/vite.config.ts",
-    "app:build": "vite build --config app/vite.config.ts"
+    "app:build": "vite build --config app/vite.config.ts",
+    "typecheck:app": "tsc -p app/tsconfig.json"
   },
   "engines": {
     "node": ">=22"
