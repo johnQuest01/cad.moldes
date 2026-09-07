@@ -37,7 +37,7 @@ import { PALETA_CLARA, PALETA_ESCURA, Tela, ligarEntrada } from '@cad/editor-pix
 import { exportarDxf } from '@cad/dxf';
 import { gerarHpgl } from '@cad/plotter';
 import { aplicarEncaixe, encaixar, type Encaixe } from '@cad/encaixe';
-import { digitalizar, type Calibracao } from '@cad/foto';
+import { calibrarComObjeto, digitalizar, objetoConhecidoMM, type Calibracao } from '@cad/foto';
 import {
   ALTURA_PADRAO_DO_PIQUE_UM,
   type Id,
@@ -585,6 +585,65 @@ em('#digitalizar').addEventListener('click', () => {
         (avisos.length > 0 ? ` | ${avisos.length} aviso(s)` : '') +
         ' — recarregando…';
       globalThis.setTimeout(() => globalThis.location.reload(), 400);
+    } catch (erro) {
+      em('#estado-foto').textContent = `Não deu para ler a foto: ${String(erro)}`;
+    }
+  })();
+});
+
+/**
+ * A calibração fica guardada no navegador porque ela é do ATELIÊ, não do modelo
+ * (decisão I8): vale para toda foto tirada naquele quadro, hoje e daqui a um ano.
+ */
+const CHAVE_CALIBRACAO = 'cad.moldes:calibracao';
+
+function guardarCalibracao(c: Calibracao): void {
+  globalThis.localStorage.setItem(CHAVE_CALIBRACAO, JSON.stringify(c));
+  em<HTMLInputElement>('#cal-largura').value = (c.larguraUM / MM).toFixed(0);
+  em<HTMLInputElement>('#cal-altura').value = (c.alturaUM / MM).toFixed(0);
+  em<HTMLInputElement>('#cal-diag1').value = (c.diagonal1UM / MM).toFixed(0);
+  em<HTMLInputElement>('#cal-diag2').value = (c.diagonal2UM / MM).toFixed(0);
+}
+
+// Ao abrir, a calibração guardada volta para os campos.
+{
+  const guardada = globalThis.localStorage.getItem(CHAVE_CALIBRACAO);
+  if (guardada !== null) {
+    try {
+      guardarCalibracao(JSON.parse(guardada) as Calibracao);
+    } catch {
+      // Calibração ilegível: fica o padrão da tela, e o operador refaz.
+    }
+  }
+}
+
+em('#calibrar').addEventListener('click', () => {
+  const arquivo = em<HTMLInputElement>('#foto-arquivo').files?.[0];
+  if (arquivo === undefined) {
+    em('#estado-foto').textContent = 'Escolha primeiro a foto do objeto de calibração.';
+    return;
+  }
+  const numero = (id: string): number => Number(em<HTMLInputElement>(id).value);
+  em('#estado-foto').textContent = 'Calibrando…';
+
+  void (async () => {
+    try {
+      const imagem = await lerImagem(arquivo);
+      const c = calibrarComObjeto(
+        imagem,
+        objetoConhecidoMM(numero('#obj-largura'), numero('#obj-altura'), numero('#obj-diag')),
+        { tenantId: TENANT },
+      );
+      if (c.calibracao === null) {
+        em('#estado-foto').textContent =
+          `Calibração recusada. ${c.problemas.find((p) => p.gravidade === 'erro')?.mensagem ?? ''}`;
+        return;
+      }
+      guardarCalibracao(c.calibracao);
+      em('#estado-foto').textContent =
+        `Quadro: ${mm(c.calibracao.larguraUM)} × ${mm(c.calibracao.alturaUM)} mm | ` +
+        `conferência da diagonal: ${c.erroDaDiagonalUM === null ? 'não medida' : `${mm(c.erroDaDiagonalUM)} mm de erro`} | ` +
+        `${mm(c.umPorPixel)} mm por pixel`;
     } catch (erro) {
       em('#estado-foto').textContent = `Não deu para ler a foto: ${String(erro)}`;
     }

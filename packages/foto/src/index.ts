@@ -80,3 +80,12 @@ export {
   type OpcoesDeDigitalizacao,
   type PecaDigitalizada,
 } from './digitalizar.js';
+
+export {
+  ERRO_MAXIMO_DA_DIAGONAL_UM,
+  calibrarComObjeto,
+  objetoConhecidoMM,
+  type Calibragem,
+  type ObjetoConhecido,
+  type OpcoesDeCalibragem,
+} from './calibrar.js';
