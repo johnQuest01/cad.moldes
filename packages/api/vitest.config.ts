@@ -13,8 +13,21 @@ import { defineConfig } from 'vitest/config';
  * em silencio.
  */
 const motor = fileURLToPath(new URL('../motor/src/index.ts', import.meta.url));
+const ia = fileURLToPath(new URL('../ia/src/index.ts', import.meta.url));
 
 export default defineConfig({
-  resolve: { alias: { '@cad/motor': motor } },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node', reporters: ['verbose'] },
+  resolve: { alias: { '@cad/motor': motor, '@cad/ia': ia } },
+  test: {
+    include: ['tests/**/*.test.ts'],
+    environment: 'node',
+    reporters: ['verbose'],
+    /**
+     * Arquivos em SERIE, com hook folgado: cada arquivo sobe um Postgres
+     * inteiro em WASM (PGlite), e tres subindo juntos numa maquina modesta
+     * estouravam o hook de 10 s de vez em quando — flake de infraestrutura,
+     * nao de logica. Em serie a suite fica ~2 s mais lenta e deterministica.
+     */
+    fileParallelism: false,
+    hookTimeout: 30_000,
+  },
 });

@@ -26,6 +26,7 @@ import type { Id, Peca, Ponto, Segmento, Vetor2 } from './tipos.js';
 import { exigirUM, type UM } from './unidades.js';
 import { medirAresta } from './geometria/medir.js';
 import { segmentosDaAresta } from './geometria/aresta.js';
+import { anelDoContorno, anelEhSimples } from './geometria/anel.js';
 
 export function redefinirComprimentoDaAresta(
   peca: Peca,
@@ -81,5 +82,20 @@ export function redefinirComprimentoDaAresta(
     }
   }
 
-  return { ...peca, pontos, segmentos };
+  const nova: Peca = { ...peca, pontos, segmentos };
+
+  // Esticar uma aresta arrasta os pontos DELA — e numa aresta cheia de pences,
+  // uma perna arrastada pode cruzar a vizinha. Contorno que se cruza nao tem
+  // dentro e fora; recusar aqui e o erro explicito (o estresse pegou o caso,
+  // semente 7, passo 111 — o mesmo genero de furo que a pence tinha).
+  exigir(
+    anelEhSimples(anelDoContorno(nova)),
+    'CONTORNO_AUTO_INTERSECTADO',
+    `Redefinir a aresta "${arestaId}" para ${comprimentoUM} UM faria o contorno da peca ` +
+      `"${peca.metadados.nome}" cruzar a si mesmo (os pontos arrastados invadem uma pence ou ` +
+      `um recorte vizinho). Diminua a mudanca ou desfaca os recortes da aresta antes.`,
+    { pecaId: peca.id, arestaId, comprimentoUM },
+  );
+
+  return nova;
 }

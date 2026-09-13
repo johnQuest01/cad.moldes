@@ -174,8 +174,9 @@ function conferirInvariantes(modelo: Modelo, peca: Peca, passo: number, op: stri
 }
 
 describe('Rajada determinística de 150 operações', () => {
-  it('nenhum passo corrompe a peça, e o log reconstrói o estado final', () => {
-    const rnd = prng(20260913);
+  it.each([[20260913], [7], [424242]])('semente %i: nenhum passo corrompe a peça, e o log reconstrói o estado final', (semente) => {
+    cortesPincados = 0;
+    const rnd = prng(semente);
     const modelo = reconstruir(eventosBase());
     let peca = modelo.pecas['p']!;
     const eventosDaRajada: Evento[] = [];
@@ -262,7 +263,7 @@ describe('Rajada determinística de 150 operações', () => {
 
     const totalAceitas = Object.values(placar.aceitas).reduce((s, v) => s + v, 0);
     const totalRecusadas = Object.values(placar.recusadas).reduce((s, v) => s + v, 0);
-    console.log('--- rajada de 150 operacoes (semente 20260913) ---');
+    console.log(`--- rajada de 150 operacoes (semente ${semente}) ---`);
     console.log(
       `aceitas ${totalAceitas}: ` +
         Object.entries(placar.aceitas)
