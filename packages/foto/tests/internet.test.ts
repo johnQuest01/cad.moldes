@@ -190,3 +190,90 @@ describe('O caso do encaixe colorido (a imagem real que derrubou a v1)', () => {
     console.log('3 pecas separadas, faixas de video ignoradas, texto interno consumido, validador limpo');
   });
 });
+
+describe('A foto de ateliê com marcações do software (a regressão do 6337)', () => {
+  it('peça kraft com pontos e linhas coloridas em cima sai INTEIRA e com a borda LISA', () => {
+    // Mesa escura, peca kraft, e as marcacoes que o software poe por cima:
+    // pontos verdes NA BORDA, linha vermelha ao longo dela, pontos pretos dentro.
+    const { img, pintar } = (function () {
+      const dados = new Uint8ClampedArray(300 * 220 * 4);
+      const por = (i: number, c: [number, number, number]): void => {
+        dados[i * 4] = c[0];
+        dados[i * 4 + 1] = c[1];
+        dados[i * 4 + 2] = c[2];
+        dados[i * 4 + 3] = 255;
+      };
+      for (let i = 0; i < 300 * 220; i++) por(i, [45, 42, 40]);
+      return {
+        img: { largura: 300, altura: 220, dados } as Imagem,
+        pintar: (x0: number, y0: number, x1: number, y1: number, c: [number, number, number]) => {
+          for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) por(y * 300 + x, c);
+        },
+      };
+    })();
+    pintar(50, 40, 250, 180, [190, 160, 120]); // a peca kraft
+    pintar(52, 42, 248, 44, [200, 40, 40]); // linha vermelha rente a borda de cima
+    for (let k = 0; k < 8; k++) pintar(60 + k * 24, 40, 64 + k * 24, 46, [60, 200, 80]); // pontos verdes NA borda
+    for (let k = 0; k < 5; k++) pintar(90 + k * 30, 100, 96 + k * 30, 106, [30, 30, 30]); // furos pretos dentro
+
+    const d = tracarDaInternet(img, { ...opcoes(), larguraMM: 600 });
+    console.log('--- foto de atelie com marcacoes ---');
+    console.log(
+      d.pecas
+        .map(
+          (p) =>
+            `${p.nome}: ${umParaMM(p.larguraUM).toFixed(0)} x ${umParaMM(p.alturaUM).toFixed(0)} mm, ` +
+            `${p.pontos} ponto(s) no contorno`,
+        )
+        .join(' | '),
+    );
+    // UMA peca — as marcacoes nao a picotam em migalhas (a v2 so-por-cor fazia isso).
+    expect(d.pecas).toHaveLength(1);
+    const p = d.pecas[0]!;
+    // 201 x 141 px a 2 mm/px = 402 x 282 mm.
+    expect(umParaMM(p.larguraUM)).toBeGreaterThan(392);
+    expect(umParaMM(p.larguraUM)).toBeLessThan(412);
+    // Borda LISA: o perimetro fica perto do retangulo ideal (2x(402+282) = 1368 mm),
+    // nao o dobro dele serrilhado em volta de cada marcacao.
+    const ideal = 2 * (402 + 282);
+    expect(umParaMM(p.perimetroUM)).toBeLessThan(ideal * 1.1);
+    // E poucos pontos: retangulo limpo, nao serrilhado.
+    expect(p.pontos).toBeLessThan(20);
+    console.log(
+      `perimetro ${umParaMM(p.perimetroUM).toFixed(0)} mm (ideal ${ideal}, teto ${Math.round(ideal * 1.1)})`,
+    );
+  });
+
+  it('a TIRA fina com pontos que a atravessam fica INTEIRA — kraft de um lado e do outro e a mesma peca', () => {
+    const dados = new Uint8ClampedArray(300 * 120 * 4);
+    const por = (i: number, c: [number, number, number]): void => {
+      dados[i * 4] = c[0];
+      dados[i * 4 + 1] = c[1];
+      dados[i * 4 + 2] = c[2];
+      dados[i * 4 + 3] = 255;
+    };
+    for (let i = 0; i < 300 * 120; i++) por(i, [45, 42, 40]);
+    const pintar = (x0: number, y0: number, x1: number, y1: number, c: [number, number, number]) => {
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) por(y * 300 + x, c);
+    };
+    // Tira kraft de 240 x 22 px com QUATRO olhais pretos que quase a
+    // atravessam (sobram 2 px de kraft em cima e embaixo — olhal real nao
+    // rasga a borda; um furo de lado a lado dividiria o papel ate na tesoura,
+    // e ai duas pecas E a resposta certa).
+    pintar(30, 50, 269, 71, [190, 160, 120]);
+    for (let k = 0; k < 4; k++) pintar(70 + k * 50, 52, 78 + k * 50, 69, [25, 25, 25]);
+
+    const d = tracarDaInternet({ largura: 300, altura: 120, dados } as Imagem, {
+      ...opcoes(),
+      larguraMM: 600,
+    });
+    console.log(
+      `tira atravessada: ${d.pecas.length} peca(s) — ` +
+        d.pecas.map((p) => `${umParaMM(p.larguraUM).toFixed(0)} x ${umParaMM(p.alturaUM).toFixed(0)} mm`).join(' | '),
+    );
+    expect(d.pecas).toHaveLength(1);
+    // 240 px x 2 mm = 480 mm de comprimento, inteira — nao cinco tocos.
+    expect(umParaMM(d.pecas[0]!.larguraUM)).toBeGreaterThan(470);
+    expect(umParaMM(d.pecas[0]!.larguraUM)).toBeLessThan(490);
+  });
+});

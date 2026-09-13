@@ -150,8 +150,17 @@ function distanciaAoSegmento(p: Vetor2, a: Vetor2, b: Vetor2): number {
 }
 
 describe('Propriedade — offset sempre cresce', () => {
-  it('para qualquer poligono valido e margem positiva, area(corte) > area(costura)', () => {
+  it('para qualquer poligono valido e margem positiva: cresce, OU recusa explicito — nunca molde menor', () => {
+    // A formulacao original exigia crescimento SEMPRE, com margem desde 1 UM.
+    // O CI (rodada de 13/09, seed 619320220) achou o contraexemplo: bico agudo
+    // + margem SUBFISICA de 1 UM (0,001 mm) fragmenta a union em 2 aneis na
+    // grade de inteiros, e o motor RECUSA com OFFSET_MULTIPLOS_ANEIS. Essa
+    // recusa e o contrato dito no proprio offset ("erro explicito e sucesso"),
+    // igual ao teste de concordancia logo abaixo ja tratava. A propriedade
+    // verdadeira e: NUNCA sai molde menor e NUNCA sai lixo calado — ou cresce,
+    // ou recusa com codigo.
     let amostras = 0;
+    let recusadas = 0;
     let menorCrescimento = Number.POSITIVE_INFINITY;
 
     fc.assert(
@@ -164,7 +173,16 @@ describe('Propriedade — offset sempre cresce', () => {
             const ponto = peca.pontos[peca.segmentos[id]!.de]!;
             return { x: ponto.x, y: ponto.y };
           });
-          const corte = offsetMargem(peca);
+
+          let corte;
+          try {
+            corte = offsetMargem(peca);
+          } catch (erro) {
+            expect(erro).toBeInstanceOf(ErroMotor);
+            expect((erro as ErroMotor).codigo).toBe('OFFSET_MULTIPLOS_ANEIS');
+            recusadas++;
+            return;
+          }
 
           const areaCostura = area(costura);
           const areaCorte = area(corte.pontos);
@@ -177,10 +195,50 @@ describe('Propriedade — offset sempre cresce', () => {
     );
 
     console.log(
-      `--- PROPRIEDADE: offset sempre cresce --- ${amostras} amostras | ` +
-        `menor razao area(corte)/area(costura) = ${menorCrescimento.toFixed(4)} (tem que ser > 1)`,
+      `--- PROPRIEDADE: offset cresce ou recusa --- ${amostras} cresceram | ` +
+        `${recusadas} recusadas com codigo | menor razao = ${menorCrescimento.toFixed(4)} (tem que ser > 1)`,
     );
     expect(menorCrescimento).toBeGreaterThan(1);
+    // Recusa e excecao degenerada, nao rotina: se passar de 5% das rodadas, o
+    // offset regrediu de verdade e este teste tem que gritar.
+    expect(recusadas).toBeLessThan(300 * 0.05);
+  });
+
+  it('o contraexemplo do CI (seed 619320220), CRAVADO: bico agudo + margem de 1 UM recusa com codigo', () => {
+    // O quadrilatero exato que o fast-check encolheu na rodada que pintou o CI
+    // de vermelho. Fica aqui deterministico para sempre: a resposta certa e a
+    // recusa explicita, nao um segundo anel calado nem um molde menor.
+    const vertices: Vetor2[] = [
+      { x: 30000, y: 0 },
+      { x: 33533, y: 28137 },
+      { x: 10107, y: 57321 },
+      { x: 52181, y: -43785 },
+    ];
+    // A reentrancia deste poligono e funda demais para QUALQUER margem — o
+    // proprio clipper parte o offset em varios aneis (3, medido). A assercao
+    // certa nao e "cresce com margem fisica": e a COERENCIA — o motor recusa
+    // exatamente quando o clipper parte, nas duas margens.
+    for (const margemUM of [1, 1 * MM]) {
+      const peca = pecaDe(vertices, margemUM);
+      const anelCostura = peca.contorno.map((id) => {
+        const ponto = peca.pontos[peca.segmentos[id]!.de]!;
+        return { x: ponto.x, y: ponto.y };
+      });
+      const doClipper = inflatePaths(
+        [anelCostura],
+        margemUM,
+        JoinType.Miter,
+        EndType.Polygon,
+        LIMITE_MITER,
+      );
+      const codigo = codigoDoErro(() => offsetMargem(peca));
+      console.log(
+        `contraexemplo com margem ${margemUM} UM: clipper da ${doClipper.length} anel(is), ` +
+          `motor ${codigo === null ? 'cresce' : `recusa com ${codigo}`}`,
+      );
+      if (doClipper.length === 1) expect(codigo).toBeNull();
+      else expect(codigo).toBe('OFFSET_MULTIPLOS_ANEIS');
+    }
   });
 
   it('com margem uniforme, o anel do motor e o do clipper concordam sempre', () => {

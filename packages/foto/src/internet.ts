@@ -144,16 +144,42 @@ interface RegiaoDeCor {
   maxY: number;
 }
 
-/** Tolerância de cor: fundo um pouco folgada (sombra leve), região mais justa. */
-const TOL_FUNDO_2 = 64 * 64;
+/**
+ * Tolerâncias de cor (distância RGB ao quadrado).
+ *
+ * A do FUNDO é APERTADA de propósito, e é medida: um furo de olhal preto
+ * (25,25,25) numa tira sobre mesa escura (45,42,40) dista 30,2 (914 ao
+ * quadrado) — com tolerância 30 o flood da mesa NÃO entra pelo furo e a tira
+ * não é partida por dentro. A sombra suave da mesa não estoura porque a média
+ * da inundação DESLIZA junto. A de REGIÃO é mais folgada: dentro de uma peça
+ * o JPEG mete mais ruído que no fundo liso.
+ */
+const TOL_SEMENTE_2 = 45 * 45;
+const TOL_PASSO_2 = 18 * 18;
+/**
+ * Teto ABSOLUTO do flood de fundo: por mais suave que a rampa seja, o fundo
+ * nunca anda para um pixel a mais de 60 de TODAS as cores de fundo. Medido na
+ * captura de video do atelie: sem o teto, a penumbra borrada da borda da peca
+ * (passos de ~10 por pixel) deixava o flood entrar no kraft e comer as pecas
+ * por dentro (fundo dava 97,9% da imagem); com ele, 44,1% — a mesa, e so ela.
+ */
+const TETO_FUNDO_2 = 60 * 60;
 const TOL_REGIAO_2 = 60 * 60;
 
 /**
- * Rotula os moldes: fundo alcançável pela borda sai; o resto agrupa por cor.
- * A média da região desliza com ela — gradiente suave de luz não parte a peça,
- * fronteira nítida de cor parte.
+ * Rotula os moldes em DOIS ESTÁGIOS — a lição das três imagens reais:
+ *
+ *  1. Componentes BINÁRIOS de tudo que não é fundo. Na foto de ateliê isso é
+ *     a peça inteira, com as marcações do software (pontos verdes, linhas
+ *     vermelhas) absorvidas — era o que a v1 fazia bem e a v2 (só cor)
+ *     regrediu: cada marquinha na borda serrilhava o contorno.
+ *  2. DENTRO de cada componente, sub-rotulagem por cor. O componente só é
+ *     PARTIDO quando a evidência é forte — duas ou mais sub-regiões grandes
+ *     (≥12% do componente) cobrindo ≥60% dele. É o caso do encaixe colorido
+ *     com peças encostadas. Uma peça kraft com sardas coloridas dá UMA sub
+ *     grande + migalhas, e fica inteira, com a borda lisa.
  */
-function segmentarPorCor(img: Imagem): {
+function segmentarPorCor(img: Imagem, areaMinima: number): {
   rotulos: Int32Array;
   regioes: RegiaoDeCor[];
   fracaoCoberta: number;
@@ -162,76 +188,295 @@ function segmentarPorCor(img: Imagem): {
   const borda = indicesDaBorda(largura, altura);
   const { cores, fracaoCoberta } = coresDoFundo(img, borda);
 
-  const ehCorDeFundo = (i: number): boolean =>
-    cores.some((c) => dist2(dados, i, c.r, c.g, c.b) <= TOL_FUNDO_2);
+  // O caso MEDIDO na captura de video do atelie: a moldura da imagem e a
+  // barra escura do player (37,44,42) e a MESA de verdade (73,75,67) quase
+  // nao encosta na moldura — sem semente, a mesa inteira viraria "molde" e
+  // colaria as pecas. Entao as cores dominantes GLOBAIS da imagem tambem
+  // semeiam o fundo, mas SO as parentes de alguma cor da moldura (a mesa
+  // dista 55 da barra e entra; o verde das pecas de um diagrama dista ~150
+  // do branco e fica de fora — senao peca virava fundo).
+  const caixasGlobais = new Map<number, { n: number; r: number; g: number; b: number }>();
+  for (let i = 0; i < largura * altura; i += 7) {
+    const r = dados[i * 4]!;
+    const g = dados[i * 4 + 1]!;
+    const b = dados[i * 4 + 2]!;
+    const chave = ((r >> 5) << 10) | ((g >> 5) << 5) | (b >> 5);
+    const caixa = caixasGlobais.get(chave) ?? { n: 0, r: 0, g: 0, b: 0 };
+    caixa.n++;
+    caixa.r += r;
+    caixa.g += g;
+    caixa.b += b;
+    caixasGlobais.set(chave, caixa);
+  }
+  const globais = [...caixasGlobais.values()]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 2)
+    .map((c) => ({ r: c.r / c.n, g: c.g / c.n, b: c.b / c.n }))
+    .filter((globo) =>
+      cores.some((c) => {
+        const dr = globo.r - c.r;
+        const dg = globo.g - c.g;
+        const db = globo.b - c.b;
+        return dr * dr + dg * dg + db * db <= 60 * 60;
+      }),
+    );
+  const sementes = [...cores, ...globais];
 
-  // Inundacao do fundo, 4 vizinhos, a partir da moldura.
+  // Inundacao do fundo a partir da moldura, por GRADIENTE: o vizinho entra se
+  // a cor dele esta a um passo curto da cor do pixel POR ONDE se chegou.
+  //
+  // E a fisica da mesa fotografada: sombra e vinheta sao RAMPAS (passo de 1 a
+  // 3 por pixel — o flood flui por baixo delas ate onde a mesa for); a borda
+  // de uma peca e um DEGRAU (kraft 190 contra mesa 45 — bloqueia), e o furo
+  // de olhal preto no meio de uma tira tambem e degrau contra a propria mesa
+  // do istmo (30 de distancia > passo de 18 — o flood NAO atravessa a tira
+  // por dentro do furo, que era o que picotava as tiras em tocos). As duas
+  // tentativas anteriores falharam cada uma num lado: tolerancia absoluta
+  // FOLGADA comia os furos, e APERTADA nao cobria a sombra e colava pecas.
   const fundo = new Uint8Array(largura * altura);
   const pilha: number[] = [];
   for (const i of borda) {
-    if (fundo[i] === 0 && ehCorDeFundo(i)) {
+    if (fundo[i] === 0 && sementes.some((c) => dist2(dados, i, c.r, c.g, c.b) <= TOL_SEMENTE_2)) {
       fundo[i] = 1;
       pilha.push(i);
     }
   }
+  // As sementes GLOBAIS valem na imagem inteira (a mesa que nao encosta na
+  // moldura), com tolerancia mais justa que a da moldura.
+  if (globais.length > 0) {
+    for (let i = 0; i < fundo.length; i++) {
+      if (fundo[i] === 0 && globais.some((c) => dist2(dados, i, c.r, c.g, c.b) <= 24 * 24)) {
+        fundo[i] = 1;
+        pilha.push(i);
+      }
+    }
+  }
+  const pertoDeFundo = (v: number): boolean =>
+    sementes.some((c) => dist2(dados, v, c.r, c.g, c.b) <= TETO_FUNDO_2);
   while (pilha.length > 0) {
-    const i = pilha.pop()!;
-    const x = i % largura;
-    const vizinhos = [i - largura, i + largura, x > 0 ? i - 1 : -1, x < largura - 1 ? i + 1 : -1];
+    const j = pilha.pop()!;
+    const jr = dados[j * 4]!;
+    const jg = dados[j * 4 + 1]!;
+    const jb = dados[j * 4 + 2]!;
+    const x = j % largura;
+    const vizinhos = [j - largura, j + largura, x > 0 ? j - 1 : -1, x < largura - 1 ? j + 1 : -1];
     for (const v of vizinhos) {
       if (v < 0 || v >= fundo.length || fundo[v] === 1) continue;
-      if (ehCorDeFundo(v)) {
+      if (dist2(dados, v, jr, jg, jb) <= TOL_PASSO_2 && pertoDeFundo(v)) {
         fundo[v] = 1;
         pilha.push(v);
       }
     }
   }
 
-  // Rotulagem por cor do que sobrou.
-  const rotulos = new Int32Array(largura * altura);
-  const regioes: RegiaoDeCor[] = [];
-  let proximo = 0;
-  for (let inicio = 0; inicio < rotulos.length; inicio++) {
-    if (fundo[inicio] === 1 || rotulos[inicio] !== 0) continue;
-    proximo++;
-    const regiao: RegiaoDeCor = {
-      rotulo: proximo,
+  // Estagio 1: componentes binarios do que nao e fundo.
+  const compDe = new Int32Array(largura * altura);
+  interface Componente {
+    readonly id: number;
+    area: number;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+    readonly pixels: number[];
+  }
+  const componentes: Componente[] = [];
+  let proximoComp = 0;
+  for (let inicio = 0; inicio < compDe.length; inicio++) {
+    if (fundo[inicio] === 1 || compDe[inicio] !== 0) continue;
+    proximoComp++;
+    const comp: Componente = {
+      id: proximoComp,
       area: 0,
       minX: largura,
       minY: altura,
       maxX: 0,
       maxY: 0,
+      pixels: [],
     };
-    let somaR = 0;
-    let somaG = 0;
-    let somaB = 0;
-    rotulos[inicio] = proximo;
+    compDe[inicio] = proximoComp;
     pilha.push(inicio);
     while (pilha.length > 0) {
       const i = pilha.pop()!;
       const x = i % largura;
       const y = (i - x) / largura;
-      regiao.area++;
-      somaR += dados[i * 4]!;
-      somaG += dados[i * 4 + 1]!;
-      somaB += dados[i * 4 + 2]!;
-      if (x < regiao.minX) regiao.minX = x;
-      if (x > regiao.maxX) regiao.maxX = x;
-      if (y < regiao.minY) regiao.minY = y;
-      if (y > regiao.maxY) regiao.maxY = y;
-      const mR = somaR / regiao.area;
-      const mG = somaG / regiao.area;
-      const mB = somaB / regiao.area;
+      comp.area++;
+      comp.pixels.push(i);
+      if (x < comp.minX) comp.minX = x;
+      if (x > comp.maxX) comp.maxX = x;
+      if (y < comp.minY) comp.minY = y;
+      if (y > comp.maxY) comp.maxY = y;
       const vizinhos = [i - largura, i + largura, x > 0 ? i - 1 : -1, x < largura - 1 ? i + 1 : -1];
       for (const v of vizinhos) {
-        if (v < 0 || v >= rotulos.length || fundo[v] === 1 || rotulos[v] !== 0) continue;
-        if (dist2(dados, v, mR, mG, mB) <= TOL_REGIAO_2) {
-          rotulos[v] = proximo;
-          pilha.push(v);
+        if (v < 0 || v >= compDe.length || fundo[v] === 1 || compDe[v] !== 0) continue;
+        compDe[v] = proximoComp;
+        pilha.push(v);
+      }
+    }
+    componentes.push(comp);
+  }
+
+  // Distancia (Chebyshev, duas passadas) de cada pixel ao FUNDO mais proximo.
+  // O contato de uma sub com o fundo e medido ATRAVES do halo de anti-aliasing
+  // (1 a 2 px de transicao em toda imagem JPEG): vizinhanca direta dava contato
+  // ~0% ate para peca escancarada no branco — medido no encaixe real.
+  const INF = 1 << 29;
+  const distFundo = new Int32Array(largura * altura).fill(INF);
+  for (let i = 0; i < distFundo.length; i++) if (fundo[i] === 1) distFundo[i] = 0;
+  for (let y = 0; y < altura; y++) {
+    for (let x = 0; x < largura; x++) {
+      const i = y * largura + x;
+      let m = distFundo[i]!;
+      if (x > 0) m = Math.min(m, distFundo[i - 1]! + 1);
+      if (y > 0) {
+        m = Math.min(m, distFundo[i - largura]! + 1);
+        if (x > 0) m = Math.min(m, distFundo[i - largura - 1]! + 1);
+        if (x < largura - 1) m = Math.min(m, distFundo[i - largura + 1]! + 1);
+      }
+      distFundo[i] = m;
+    }
+  }
+  for (let y = altura - 1; y >= 0; y--) {
+    for (let x = largura - 1; x >= 0; x--) {
+      const i = y * largura + x;
+      let m = distFundo[i]!;
+      if (x < largura - 1) m = Math.min(m, distFundo[i + 1]! + 1);
+      if (y < altura - 1) {
+        m = Math.min(m, distFundo[i + largura]! + 1);
+        if (x < largura - 1) m = Math.min(m, distFundo[i + largura + 1]! + 1);
+        if (x > 0) m = Math.min(m, distFundo[i + largura - 1]! + 1);
+      }
+      distFundo[i] = m;
+    }
+  }
+
+  // Estagio 2: sub-rotulagem por cor DENTRO do componente, e a decisao de partir.
+  const rotulos = new Int32Array(largura * altura);
+  const regioes: RegiaoDeCor[] = [];
+  let proximo = 0;
+  const novaRegiao = (): RegiaoDeCor => {
+    proximo++;
+    return { rotulo: proximo, area: 0, minX: largura, minY: altura, maxX: 0, maxY: 0 };
+  };
+  const registrar = (regiao: RegiaoDeCor, i: number): void => {
+    const x = i % largura;
+    const y = (i - x) / largura;
+    regiao.area++;
+    if (x < regiao.minX) regiao.minX = x;
+    if (x > regiao.maxX) regiao.maxX = x;
+    if (y < regiao.minY) regiao.minY = y;
+    if (y > regiao.maxY) regiao.maxY = y;
+  };
+
+  for (const comp of componentes) {
+    // Sub-rotulos por cor, so por pixels DESTE componente, com a media deslizando.
+    const subDe = new Map<number, number>(); // pixel -> sub
+    const subs: { area: number; pixels: number[]; r: number; g: number; b: number }[] = [];
+    for (const semente of comp.pixels) {
+      if (subDe.has(semente)) continue;
+      const sub = { area: 0, pixels: [] as number[], r: 0, g: 0, b: 0 };
+      let somaR = 0;
+      let somaG = 0;
+      let somaB = 0;
+      subDe.set(semente, subs.length);
+      pilha.push(semente);
+      while (pilha.length > 0) {
+        const i = pilha.pop()!;
+        const x = i % largura;
+        sub.area++;
+        sub.pixels.push(i);
+        somaR += dados[i * 4]!;
+        somaG += dados[i * 4 + 1]!;
+        somaB += dados[i * 4 + 2]!;
+        const mR = somaR / sub.area;
+        const mG = somaG / sub.area;
+        const mB = somaB / sub.area;
+        const vizinhos = [i - largura, i + largura, x > 0 ? i - 1 : -1, x < largura - 1 ? i + 1 : -1];
+        for (const v of vizinhos) {
+          if (v < 0 || v >= compDe.length || compDe[v] !== comp.id || subDe.has(v)) continue;
+          if (dist2(dados, v, mR, mG, mB) <= TOL_REGIAO_2) {
+            subDe.set(v, subs.length);
+            pilha.push(v);
+          }
+        }
+      }
+      sub.r = somaR / sub.area;
+      sub.g = somaG / sub.area;
+      sub.b = somaB / sub.area;
+      subs.push(sub);
+    }
+
+    // Uma sub so e CANDIDATA a peca propria quando passa em tres provas:
+    //
+    //  - area ABSOLUTA (a minima de peca da imagem), com piso relativo de 3%
+    //    para nao promover marcacao comprida em peca gigante — o limiar
+    //    relativo puro (12%) falhou no encaixe real de 10+ pecas encostadas,
+    //    onde nenhuma chegava a 12% do blob;
+    //  - BORDA LIVRE: peca de verdade toca o FUNDO em boa parte do proprio
+    //    perimetro; um furo de olhal ou um texto fica no interior (contato
+    //    zero) ou so encosta no fundo por uma janelinha (o istmo do furo que
+    //    atravessa a tira) — abaixo de 20% do perimetro estimado, nao e peca;
+    //  - e o conjunto so PARTE se ha >= 2 candidatas de cores DIFERENTES
+    //    entre si: kraft cortado ao meio por um ponto preto e a mesma peca.
+    const candidatas = subs.filter((s) => {
+      if (s.area < Math.max(areaMinima, comp.area * 0.03)) return false;
+      // Contato com o fundo MEDIDO contra o perimetro real da sub: um ponto
+      // que atravessa a tira toca o fundo so nos dois topos (~29% do proprio
+      // perimetro); uma peca de verdade, mesmo espremida no meio da fileira,
+      // fica acima de 40%.
+      let contato = 0;
+      let perimetro = 0;
+      for (const i of s.pixels) {
+        const x = i % largura;
+        const vizinhos = [i - largura, i + largura, x > 0 ? i - 1 : -1, x < largura - 1 ? i + 1 : -1];
+        let naBorda = false;
+        for (const v of vizinhos) {
+          if (v < 0 || v >= fundo.length || fundo[v] === 1 || subDe.get(v) !== subDe.get(i)) {
+            naBorda = true;
+            break;
+          }
+        }
+        if (naBorda) {
+          perimetro++;
+          if (distFundo[i]! <= 3) contato++;
+        }
+      }
+      return perimetro > 0 && contato / perimetro >= 0.35;
+    });
+    const cobertura = candidatas.reduce((soma, s) => soma + s.area, 0) / comp.area;
+    let coresDiferentes = false;
+    for (let a = 0; a < candidatas.length && !coresDiferentes; a++) {
+      for (let b = a + 1; b < candidatas.length; b++) {
+        const ga = candidatas[a]!;
+        const gb = candidatas[b]!;
+        const dr = ga.r - gb.r;
+        const dg = ga.g - gb.g;
+        const db = ga.b - gb.b;
+        if (dr * dr + dg * dg + db * db > TOL_REGIAO_2) {
+          coresDiferentes = true;
+          break;
         }
       }
     }
-    regioes.push(regiao);
+    if (candidatas.length >= 2 && cobertura >= 0.5 && coresDiferentes) {
+      // Evidencia forte de pecas encostadas de cores diferentes: PARTE.
+      for (const sub of candidatas) {
+        const regiao = novaRegiao();
+        for (const i of sub.pixels) {
+          rotulos[i] = regiao.rotulo;
+          registrar(regiao, i);
+        }
+        regioes.push(regiao);
+      }
+    } else {
+      // Uma cor dominante (ou salpicos): o componente fica INTEIRO e liso.
+      const regiao = novaRegiao();
+      for (const i of comp.pixels) {
+        rotulos[i] = regiao.rotulo;
+        registrar(regiao, i);
+      }
+      regioes.push(regiao);
+    }
   }
   return { rotulos, regioes, fracaoCoberta };
 }
@@ -293,7 +538,8 @@ export function tracarDaInternet(img: Imagem, opcoes: OpcoesDoBrinquedo): Brinqu
   // Abaixo de ~1,5 px nao existe desenho, existe escada de quantizacao.
   const tolerancia = Math.round(1.5 * umPorPixel);
 
-  const { rotulos, regioes, fracaoCoberta } = segmentarPorCor(img);
+  const areaMinima = Math.round(img.largura * img.altura * (opcoes.areaMinimaFracao ?? 0.002));
+  const { rotulos, regioes, fracaoCoberta } = segmentarPorCor(img, areaMinima);
   if (fracaoCoberta < 0.7) {
     return vazio([
       {
@@ -307,7 +553,6 @@ export function tracarDaInternet(img: Imagem, opcoes: OpcoesDoBrinquedo): Brinqu
     ]);
   }
 
-  const areaMinima = Math.round(img.largura * img.altura * (opcoes.areaMinimaFracao ?? 0.002));
   const grandes = regioes.filter((r) => r.area >= areaMinima);
   if (grandes.length === 0) {
     return vazio([
