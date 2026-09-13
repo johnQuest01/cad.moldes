@@ -26,16 +26,24 @@ jobs:
 
       - run: npm ci
 
+      # O build vem ANTES do typecheck de proposito: o tsc resolve `@cad/motor`
+      # e os demais pelo `exports` do package.json — ou seja, pelo `dist` — e num
+      # checkout limpo o dist nao existe ainda. E a mesma ordem do `npm run ci`
+      # local; com a ordem invertida este workflow ficou vermelho tres pushes
+      # seguidos sem ninguem notar o motivo.
+      - name: Build
+        run: npm run build
+
       - name: Typecheck
         run: npm run typecheck
 
-      # Os testes rodam contra o FONTE (alias no vitest.config), entao nao dependem
-      # do build e falham rapido.
+      - name: Typecheck do app
+        run: npm run typecheck:app
+
+      # Os testes rodam contra o FONTE (alias no vitest.config): pegam erro no
+      # codigo real, com rastro de pilha em cima do fonte.
       - name: Testes
         run: npm test
-
-      - name: Build
-        run: npm run build
 
       # O `exports` do package.json e a saida do tsc sao contrato com a Fase 2 e
       # com o Tauri. Este passo importa cada pacote pelo NOME e faz o motor
