@@ -246,7 +246,7 @@ describe('O que a IA NÃO pode fazer, e a guarda pega', () => {
 });
 
 describe('Quem tem licença, e é pouca gente', () => {
-  it('só quatro ferramentas têm licença, e as de mexer no desenho são DUAS', () => {
+  it('o censo das licenças: quem pode mexer no desenho entra NOMEADO', () => {
     const comLicenca = CATALOGO.filter((f) => f.licenca !== undefined);
     console.log('--- licencas do catalogo ---');
     for (const f of comLicenca) {
@@ -261,13 +261,22 @@ describe('Quem tem licença, e é pouca gente', () => {
         `${mexemNaForma.length} pode mexer no desenho`,
     );
     // O censo e deliberado: quem entra aqui entra NOMEADO, com o criterio dito.
-    // dimensionar_peca entrou em 2026-09-13 — e o Encolhimento do oficio, opera
-    // com percentual explicito e pede confirmacao humana antes de acontecer.
+    // O criterio e um so, e vale para todas: operacao de OFICIO, com numero
+    // explicito nos argumentos, e confirmacao humana antes de acontecer (J5).
+    //   simplificar_contorno (fase 7), dimensionar_peca (2026-09-13, o
+    //   Encolhimento), e o lote da comparacao com o Audaces (2026-09-13):
+    //   gerar_pregas, abrir_pence, desdobrar_peca e redefinir_aresta.
+    // definir_bainha e alinhar_peca NAO tem licenca de forma: bainha e margem +
+    // piques (contorno intacto) e alinhar e translacao rigida.
     expect(mexemNaForma.map((f) => f.nome).sort()).toEqual([
+      'abrir_pence',
+      'desdobrar_peca',
       'dimensionar_peca',
+      'gerar_pregas',
+      'redefinir_aresta',
       'simplificar_contorno',
     ]);
-    expect(comLicenca).toHaveLength(4);
+    expect(comLicenca).toHaveLength(8);
   });
 
   it('nenhuma ferramenta de encaixe ou exportação tem licença nenhuma', () => {

@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { Sessao } from '@cad/editor';
 import {
   MM,
+  medirAresta as medirArestaDoMotor,
   criarGeradorMonotonico,
   reconstruir,
   umParaMM,
@@ -397,3 +398,80 @@ describe('Dimensionar / Encolhimento', () => {
     if (r.tipo === 'erro') expect(r.mensagem).toContain('103');
   });
 });
+
+describe('As ferramentas do oficio (comparacao com o Audaces)', () => {
+  it('gerar_pregas confirma, e o gesto confirmado ALARGA a peca a conta exata', () => {
+    const r = usar('gerar_pregas', {
+      peca: 'FRENTE', aresta: 'p1-ar-0', quantidade: 3, distancia_mm: 60, largura1_mm: 15, largura2_mm: 5,
+    });
+    expect(r.tipo).toBe('confirmar');
+    if (r.tipo !== 'confirmar') return;
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    const xs = Object.values(depois.pecas['p1']!.pontos).map((p) => p.x);
+    const largura = Math.max(...xs) - Math.min(...xs);
+    console.log(`3 pregas de 15+5 -> largura ${umParaMM(largura)} mm (era 400, esperado 460)`);
+    expect(umParaMM(largura)).toBe(460);
+  });
+
+  it('abrir_pence confirma e tira a area do triangulo', () => {
+    const r = usar('abrir_pence', {
+      peca: 'FRENTE', aresta: 'p1-ar-0', abertura_mm: 30, profundidade_mm: 100,
+    });
+    expect(r.tipo).toBe('confirmar');
+    if (r.tipo !== 'confirmar') return;
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    expect(Object.keys(depois.pecas['p1']!.pontos).length).toBeGreaterThan(4);
+    console.log(`pence pela IA: ${r.resumo}`);
+  });
+
+  it('definir_bainha NAO pede licenca de forma: margem + piques, contorno intacto', () => {
+    const r = usar('definir_bainha', { peca: 'FRENTE', aresta: 'p1-ar-0', altura_mm: 25 });
+    expect(r.tipo).toBe('gestos');
+    if (r.tipo !== 'gestos') return;
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    console.log(`${r.resumo}`);
+    expect(umParaMM(depois.pecas['p1']!.margens['p1-ar-0'] ?? 0)).toBe(25);
+    expect(acharFerramenta('definir_bainha')!.licenca).toBeUndefined();
+  });
+
+  it('alinhar_peca poe a MANGA na mesma base da FRENTE', () => {
+    const r = usar('alinhar_peca', { peca: 'MANGA', referencia: 'FRENTE', lado: 'base' });
+    expect(r.tipo).toBe('gestos');
+    if (r.tipo !== 'gestos') return;
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    const baseDe = (id: string) =>
+      Math.min(...Object.values(depois.pecas[id]!.pontos).map((p) => p.y));
+    console.log(`bases: FRENTE ${umParaMM(baseDe('p1'))} | MANGA ${umParaMM(baseDe('p2'))} mm`);
+    expect(baseDe('p2')).toBe(baseDe('p1'));
+  });
+
+  it('redefinir_aresta confirma e CRAVA a medida', () => {
+    const r = usar('redefinir_aresta', { peca: 'MANGA', aresta: 'p2-ar-1', comprimento_mm: 520 });
+    expect(r.tipo).toBe('confirmar');
+    if (r.tipo !== 'confirmar') return;
+    console.log(`pergunta: "${r.pergunta}"`);
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    const { medirAresta } = motorParaTeste();
+    expect(umParaMM(medirAresta(depois.pecas['p2']!, 'p2-ar-1'))).toBe(520);
+  });
+
+  it('desdobrar_peca sem eixo explica o que falta, em vez de chutar', () => {
+    const r = usar('desdobrar_peca', { peca: 'FRENTE' });
+    console.log(r.tipo === 'erro' ? r.mensagem : r.tipo);
+    expect(r.tipo).toBe('erro');
+    if (r.tipo === 'erro') expect(r.mensagem).toContain('eixo de dobra');
+  });
+
+  it('aresta errada devolve a LISTA das arestas da peca', () => {
+    const r = usar('gerar_pregas', {
+      peca: 'FRENTE', aresta: 'barra', quantidade: 2, distancia_mm: 50, largura1_mm: 10,
+    });
+    expect(r.tipo).toBe('erro');
+    if (r.tipo === 'erro') expect(r.mensagem).toContain('p1-ar-0');
+  });
+});
+
+function motorParaTeste(): typeof import('@cad/motor') {
+  // Import estatico ja existe no topo via reconstruir; aqui so tipamos o acesso.
+  return { medirAresta: medirArestaDoMotor } as unknown as typeof import('@cad/motor');
+}

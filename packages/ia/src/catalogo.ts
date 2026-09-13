@@ -7,7 +7,13 @@
  */
 import {
   definirEncaixe,
+  abrirPenceComando,
+  alinharPeca,
+  definirBainha,
+  desdobrarPecaComando,
   dimensionarPeca,
+  gerarPregas,
+  redefinirAresta,
   definirMargem,
   duplicarPeca,
   removerPeca,
@@ -508,6 +514,267 @@ const papel: Ferramenta = {
     }),
 };
 
+const LICENCA_DE_FORMA = { alteraForma: true, criaPeca: false, removePeca: false } as const;
+
+/** Acha uma aresta da peça pelo id, com a lista das existentes no erro. */
+function acharAresta(peca: Peca, pedido: string): Id | null {
+  if (peca.arestas[pedido] !== undefined) return pedido;
+  return null;
+}
+const semAresta = (peca: Peca, pedido: string): Resultado =>
+  erro(
+    `Não existe a aresta "${pedido}" na peça "${peca.metadados.nome}". As arestas dela são: ` +
+      `${Object.keys(peca.arestas).join(', ')}. Use medir_peca para ver o comprimento de cada uma.`,
+  );
+
+const pregas: Ferramenta = {
+  nome: 'gerar_pregas',
+  licenca: LICENCA_DE_FORMA,
+  descricao:
+    'Gera pregas numa aresta, como o diálogo do ofício: quantas pregas, distância entre ' +
+    'elas em mm, e as duas larguras da dobra em mm (largura 2 pode ser 0 para prega ' +
+    'simples). A peça ALARGA quantidade × (largura1+largura2) mm — é tecido a mais, e os ' +
+    'piques de cada dobra saem sozinhos. Exige TODOS os números; se a pessoa não disser, ' +
+    'PERGUNTE. DESTRUTIVO: pede confirmação.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      aresta: { type: 'string', description: 'Id da aresta onde as pregas entram.' },
+      quantidade: { type: 'number', description: 'Quantas pregas. Inteiro de 1 a 60.' },
+      distancia_mm: { type: 'number', description: 'Distância entre pregas, em mm.' },
+      largura1_mm: { type: 'number', description: 'Primeira dobra da prega, em mm.' },
+      largura2_mm: { type: 'number', description: 'Segunda dobra, em mm. 0 = prega simples.' },
+    },
+    ['peca', 'aresta', 'quantidade', 'distancia_mm', 'largura1_mm'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const arestaId = acharAresta(achada.peca, String(args.aresta ?? ''));
+      if (arestaId === null) return semAresta(achada.peca, String(args.aresta ?? ''));
+      const quantidade = Number(args.quantidade);
+      const distancia = Number(args.distancia_mm);
+      const l1 = Number(args.largura1_mm);
+      const l2 = Number(args.largura2_mm ?? 0);
+      const semente = `iapg${Object.keys(achada.peca.eixosDobra).length}`;
+      try {
+        const gestos = gerarPregas(
+          modelo,
+          achada.id,
+          arestaId,
+          { quantidade, distanciaMM: distancia, largura1MM: l1, largura2MM: l2 },
+          semente,
+        );
+        return {
+          tipo: 'confirmar',
+          pergunta:
+            `Gerar ${quantidade} prega(s) de ${l1}+${l2} mm a cada ${distancia} mm na aresta ` +
+            `"${arestaId}" de "${achada.peca.metadados.nome}"? A peça alarga ` +
+            `${quantidade * (l1 + l2)} mm.`,
+          gestos,
+          resumo: `${quantidade} prega(s) geradas em "${achada.peca.metadados.nome}".`,
+        };
+      } catch (e) {
+        return erro(String(e instanceof Error ? e.message : e));
+      }
+    }),
+};
+
+const pence: Ferramenta = {
+  nome: 'abrir_pence',
+  licenca: LICENCA_DE_FORMA,
+  descricao:
+    'Abre uma PENCE no contorno: boca de X mm centrada numa posição da aresta (0 a 1, ' +
+    '0,5 = meio) e ápice a Y mm para dentro. É a pence de cintura/busto do ofício. A boca ' +
+    'não pode passar por cima de canto. Exige abertura e profundidade em mm — não chute. ' +
+    'DESTRUTIVO: pede confirmação.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      aresta: { type: 'string', description: 'Id da aresta da boca.' },
+      posicao: { type: 'number', description: 'Onde na aresta, de 0 a 1. Padrão 0,5 (meio).' },
+      abertura_mm: { type: 'number', description: 'Largura da boca, em mm.' },
+      profundidade_mm: { type: 'number', description: 'Profundidade até o ápice, em mm.' },
+    },
+    ['peca', 'aresta', 'abertura_mm', 'profundidade_mm'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const arestaId = acharAresta(achada.peca, String(args.aresta ?? ''));
+      if (arestaId === null) return semAresta(achada.peca, String(args.aresta ?? ''));
+      const s = args.posicao === undefined ? 0.5 : Number(args.posicao);
+      const abertura = Number(args.abertura_mm);
+      const profundidade = Number(args.profundidade_mm);
+      const semente = `iapn${Object.keys(achada.peca.pontos).length}`;
+      return {
+        tipo: 'confirmar',
+        pergunta:
+          `Abrir pence de ${abertura} × ${profundidade} mm na aresta "${arestaId}" de ` +
+          `"${achada.peca.metadados.nome}", em s=${s}? O contorno da peça muda.`,
+        gestos: abrirPenceComando(modelo, achada.id, arestaId, s, abertura, profundidade, semente),
+        resumo: `Pence de ${abertura}×${profundidade} mm aberta em "${achada.peca.metadados.nome}".`,
+      };
+    }),
+};
+
+const desdobrar: Ferramenta = {
+  nome: 'desdobrar_peca',
+  licenca: LICENCA_DE_FORMA,
+  descricao:
+    'Desdobra a meia-peça no eixo de dobra: vira a peça INTEIRA, com as arestas espelhadas ' +
+    'ganhando margem da irmã e os piques espelhados. Use quando a pessoa desenhou a metade ' +
+    '(meia-frente na dobra do tecido) e quer a peça aberta. Exige um eixo de dobra já ' +
+    'definido na peça — se não houver, diga isso. DESTRUTIVO: pede confirmação.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      eixo: { type: 'string', description: 'Id do eixo de dobra. Sem ele, usa o único que houver.' },
+    },
+    ['peca'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const eixos = Object.keys(achada.peca.eixosDobra);
+      let eixoId = typeof args.eixo === 'string' && args.eixo !== '' ? args.eixo : null;
+      if (eixoId === null) {
+        if (eixos.length !== 1) {
+          return erro(
+            eixos.length === 0
+              ? `A peça "${achada.peca.metadados.nome}" não tem eixo de dobra. Peça à pessoa ` +
+                `para traçar o eixo (ferramenta X) na lateral da dobra antes.`
+              : `A peça tem ${eixos.length} eixos de dobra (${eixos.join(', ')}); diga qual usar.`,
+          );
+        }
+        eixoId = eixos[0]!;
+      }
+      const semente = `iadd${Object.keys(achada.peca.pontos).length}`;
+      return {
+        tipo: 'confirmar',
+        pergunta:
+          `Desdobrar "${achada.peca.metadados.nome}" pelo eixo "${eixoId}"? A metade vira a ` +
+          `peça inteira — a área dobra.`,
+        gestos: desdobrarPecaComando(modelo, achada.id, eixoId, semente),
+        resumo: `"${achada.peca.metadados.nome}" desdobrada.`,
+      };
+    }),
+};
+
+const bainha: Ferramenta = {
+  nome: 'definir_bainha',
+  descricao:
+    'Marca a BAINHA de uma aresta: a barra ganha a altura da dobra como margem de corte e ' +
+    'um pique em cada lateral vizinha marca onde dobrar. Não muda o desenho da peça — só ' +
+    'margem e piques. Exige a altura em mm.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      aresta: { type: 'string', description: 'Id da aresta da barra.' },
+      altura_mm: { type: 'number', description: 'Altura da bainha, em mm. Ex.: 25.' },
+    },
+    ['peca', 'aresta', 'altura_mm'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const arestaId = acharAresta(achada.peca, String(args.aresta ?? ''));
+      if (arestaId === null) return semAresta(achada.peca, String(args.aresta ?? ''));
+      const altura = Number(args.altura_mm);
+      const semente = `iabn${Object.keys(achada.peca.piques).length}`;
+      try {
+        return {
+          tipo: 'gestos',
+          gestos: definirBainha(modelo, achada.id, arestaId, altura, semente),
+          resumo:
+            `Bainha de ${altura} mm na aresta "${arestaId}" de "${achada.peca.metadados.nome}": ` +
+            `margem virou ${altura} mm e as laterais ganharam o pique da dobra.`,
+        };
+      } catch (e) {
+        return erro(String(e instanceof Error ? e.message : e));
+      }
+    }),
+};
+
+const alinhar: Ferramenta = {
+  nome: 'alinhar_peca',
+  descricao:
+    'Alinha uma peça pela caixa de OUTRA: mesma esquerda, direita, topo, base, ou centro ' +
+    'com centro. Translação pura — nada de forma muda. Útil para arrumar a mesa antes de ' +
+    'comparar ou medir.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      referencia: { type: 'string', description: 'Nome ou id da peça que fica parada.' },
+      lado: {
+        type: 'string',
+        enum: ['esquerda', 'direita', 'topo', 'base', 'centro'],
+        description: 'O que casar.',
+      },
+    },
+    ['peca', 'referencia', 'lado'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const ref = acharPeca(modelo, String(args.referencia ?? ''));
+      if (ref === null) return semPeca(modelo, String(args.referencia ?? ''));
+      const lado = String(args.lado) as 'esquerda' | 'direita' | 'topo' | 'base' | 'centro';
+      try {
+        return {
+          tipo: 'gestos',
+          gestos: alinharPeca(modelo, achada.id, ref.id, lado),
+          resumo:
+            `"${achada.peca.metadados.nome}" alinhada com "${ref.peca.metadados.nome}" ` +
+            `pela ${lado}.`,
+        };
+      } catch (e) {
+        return erro(String(e instanceof Error ? e.message : e));
+      }
+    }),
+};
+
+const redefinir: Ferramenta = {
+  nome: 'redefinir_aresta',
+  licenca: LICENCA_DE_FORMA,
+  descricao:
+    'Impõe o COMPRIMENTO de uma aresta, em mm — o "redefinir perímetro" do ofício. Serve ' +
+    'para casar a cabeça da manga com a cava (meça as duas com medir_peca primeiro, some o ' +
+    'embebido, e imponha o total). A forma da curva é preservada: é escala, não redesenho. ' +
+    'A aresta vizinha acompanha pelo canto compartilhado. DESTRUTIVO: pede confirmação.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      aresta: { type: 'string', description: 'Id da aresta.' },
+      comprimento_mm: { type: 'number', description: 'O comprimento final, em mm.' },
+    },
+    ['peca', 'aresta', 'comprimento_mm'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const arestaId = acharAresta(achada.peca, String(args.aresta ?? ''));
+      if (arestaId === null) return semAresta(achada.peca, String(args.aresta ?? ''));
+      const alvo = Number(args.comprimento_mm);
+      const atual = umParaMM(medirAresta(achada.peca, arestaId));
+      return {
+        tipo: 'confirmar',
+        pergunta:
+          `Redefinir a aresta "${arestaId}" de "${achada.peca.metadados.nome}" de ` +
+          `${atual.toFixed(1)} para ${alvo} mm? O canto compartilhado com a vizinha se move.`,
+        gestos: redefinirAresta(modelo, achada.id, arestaId, alvo),
+        resumo: `Aresta "${arestaId}" redefinida de ${atual.toFixed(1)} para ${alvo} mm.`,
+      };
+    }),
+};
+
+
 // ------------------------------------------------------------------ ações do app
 
 const acao = (nome: string, descricao: string, esquema: Esquema, resumo: string): Ferramenta => ({
@@ -649,6 +916,12 @@ export const CATALOGO: readonly Ferramenta[] = [
   espelhar,
   rotacionar,
   dimensionar,
+  pregas,
+  pence,
+  desdobrar,
+  bainha,
+  alinhar,
+  redefinir,
   papel,
   encaixarFerramenta,
   exportar,
