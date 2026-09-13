@@ -53,7 +53,7 @@ function buscarFalso(ok: boolean, corpo: unknown): typeof fetch {
   }) as typeof fetch;
 }
 
-function servidor(ia: Parameters<typeof criarServidor>[0]['ia']): FastifyInstance {
+function servidor(ia: NonNullable<Parameters<typeof criarServidor>[0]['ia']>): FastifyInstance {
   return criarServidor({ repositorio: repo, tenant: tenantDeDesenvolvimento(), ia });
 }
 

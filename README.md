@@ -1,8 +1,9 @@
 # cad.moldes
 
 Motor geométrico 2D para modelagem de moldes de confecção, em TypeScript puro, mais a persistência
-por log de eventos e o backend. **Fases 1 a 6 completas, mais o assistente: 510 testes passando** (198 motor + 141 editor + 14 DXF + 9 plotter +
-15 encaixe + 50 foto + 43 IA + 18 persistência + 19 API).
+por log de eventos e o backend. **Fases 1 a 7 completas, mais as ferramentas de PRODUÇÃO do ofício
+(pregas, pence, bainha, desdobrar, redefinir aresta, alinhar) e o teste de estresse: 547 testes passando**
+(216 motor + 148 editor + 14 DXF + 9 plotter + 15 encaixe + 50 foto + 53 IA + 18 persistência + 24 API).
 
 A especificação normativa está em [`MD/`](MD/README-fase1.MD) — comece pelo índice. A **Parte 6**
 diz onde o código está e traz cada decisão com o número medido que a sustenta.
