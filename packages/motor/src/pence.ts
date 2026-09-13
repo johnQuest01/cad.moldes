@@ -31,7 +31,7 @@ import { exigirUM, type UM } from './unidades.js';
 import { inserirPonto } from './edicao.js';
 import { localizarNoContorno } from './piques.js';
 import { medirAresta, pontoEmS, tabelaArcoDaAresta, pontoNaTabela } from './geometria/medir.js';
-import { anelDoContorno, area } from './geometria/anel.js';
+import { anelDoContorno, anelEhSimples, area } from './geometria/anel.js';
 
 /**
  * Abre uma pence na aresta, com a boca centrada na fracao `s` do comprimento.
@@ -180,13 +180,27 @@ export function abrirPence(
   // A pence TIRA area (o bico entra). Se a area cresceu, a normal apontou para
   // fora — e isso seria um molde silenciosamente maior.
   const areaAntes = area(anelDoContorno(peca));
-  const areaDepois = area(anelDoContorno(aberta));
+  const anelDepois = anelDoContorno(aberta);
+  const areaDepois = area(anelDepois);
   exigir(
     areaDepois < areaAntes,
     'PENCE_INVALIDA',
     `A pence AUMENTOU a area da peca "${peca.metadados.nome}" (${areaAntes} -> ${areaDepois} ` +
       `UM2). O apice caiu para fora do contorno.`,
     { pecaId: peca.id, areaAntes, areaDepois },
+  );
+
+  // As pernas novas nao podem CRUZAR o resto do contorno — uma pence funda ao
+  // lado de outra faz exatamente isso, e um contorno que se cruza nao tem
+  // dentro e fora. Recusar aqui e o erro explicito; deixar passar seria
+  // corromper o molde calado (o estresse pegou este caso).
+  exigir(
+    anelEhSimples(anelDepois),
+    'PENCE_INVALIDA',
+    `A pence em s = ${s} da aresta "${arestaId}" cruzaria o contorno da peca ` +
+      `"${peca.metadados.nome}" (as pernas invadem outra pence ou uma regiao ja recortada). ` +
+      `Afaste a pence ou diminua a profundidade.`,
+    { pecaId: peca.id, arestaId, s },
   );
 
   return aberta;

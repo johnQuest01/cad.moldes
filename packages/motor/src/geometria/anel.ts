@@ -4,6 +4,8 @@
  * O anel e fechado por construcao — o primeiro ponto NAO e repetido no fim.
  * Convencao Y-up (D4).
  */
+import { FillRule, union, type Paths64 } from 'clipper2-ts';
+
 import { exigir } from '../erros.js';
 import type { Peca, Vetor2 } from '../tipos.js';
 import { TOLERANCIA_TESSELACAO_UM, type UM } from '../unidades.js';
@@ -97,4 +99,21 @@ function naCorda(a: Vetor2, b: Vetor2, p: Vetor2): boolean {
     p.y >= Math.min(a.y, b.y) &&
     p.y <= Math.max(a.y, b.y)
   );
+}
+
+/**
+ * Um anel e SIMPLES quando nao cruza a si mesmo. A prova e do clipper2: a
+ * uniao de um anel simples devolve um laco so, com a mesma area do shoelace;
+ * um anel que se cruza separa em lacos e as areas divergem. Tolerancia de
+ * 0,1% de area cobre o ruido de arredondamento em UM inteiro.
+ */
+export function anelEhSimples(anel: readonly Vetor2[]): boolean {
+  if (anel.length < 3) return false;
+  const unido = union([anel.map((p) => ({ x: p.x, y: p.y }))] as Paths64, FillRule.NonZero);
+  const areaAnel = area(anel);
+  const areaUnida = unido.reduce(
+    (soma, caminho) => soma + area(caminho.map((p) => ({ x: p.x, y: p.y }))),
+    0,
+  );
+  return unido.length === 1 && Math.abs(areaUnida - areaAnel) <= areaAnel * 0.001;
 }
