@@ -11,7 +11,10 @@
  * testados headless como o resto.
  */
 import {
+  medirAresta,
   mmParaUM,
+  pontoEmS,
+  umParaMM,
   type Id,
   type Modelo,
   type Peca,
@@ -233,6 +236,281 @@ export function dimensionarPeca(
         fatorX: percentualLargura / 100,
         fatorY: percentualAltura / 100,
       },
+    },
+  ];
+}
+
+/** Altura e boca padrao do pique gerado por comandos (o padrao do motor: 1/4" x 1/16"). */
+const PIQUE_PADRAO = { alturaUM: 6350, larguraUM: 1590, anguloGraus: 0 } as const;
+
+/**
+ * Gera pregas PARAMETRICAS numa aresta — o dialogo "Pregas" do oficio: quantas,
+ * de quanto em quanto, e com que largura.
+ *
+ * O que sai daqui sao os gestos de sempre: N eixos de dobra perpendiculares a
+ * CORDA da aresta (perpendiculares a corda = paralelos entre si, que e o que
+ * `abrirPregas` exige), centrados na aresta, e um `AbrirPregas` no fim. O motor
+ * faz o corte-e-abre e poe os piques de cada dobra; nada e recalculado aqui.
+ *
+ * ## A conversao de largura
+ * O dialogo do oficio pede "largura 1" e "largura 2" (as duas dobras da prega).
+ * Uma prega consome `largura1 + largura2` de tecido plano, e o motor cobra `2 x
+ * profundidade` por eixo — entao `profundidade = (largura1 + largura2) / 2`. Com
+ * largura 2 zero (prega simples), e meia largura 1: a mesma conta.
+ */
+export function gerarPregas(
+  modelo: Modelo,
+  pecaId: Id,
+  arestaId: Id,
+  opcoes: {
+    quantidade: number;
+    distanciaMM: number;
+    largura1MM: number;
+    largura2MM?: number;
+  },
+  semente: string,
+): Gesto[] {
+  const peca = exigirPeca(modelo, pecaId);
+  const aresta = peca.arestas[arestaId];
+  if (aresta === undefined) {
+    throw new Error(
+      `A aresta "${arestaId}" nao existe na peca "${peca.metadados.nome}". ` +
+        `As arestas dela sao: ${Object.keys(peca.arestas).join(', ')}.`,
+    );
+  }
+  const { quantidade, distanciaMM } = opcoes;
+  const largura2MM = opcoes.largura2MM ?? 0;
+  if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 60) {
+    throw new Error(`O numero de pregas precisa ser um inteiro de 1 a 60; veio ${quantidade}.`);
+  }
+  if (!(distanciaMM > 0) || !(opcoes.largura1MM > 0) || largura2MM < 0) {
+    throw new Error(
+      'Pregas precisam de distancia e largura 1 positivas (largura 2 pode ser zero).',
+    );
+  }
+
+  const comprimento = medirAresta(peca, arestaId);
+  const vao = mmParaUM(distanciaMM);
+  const folgaDaPonta = 0.05;
+  const span = (quantidade - 1) * vao;
+  const sInicio = 0.5 - span / 2 / comprimento;
+  const sFim = 0.5 + span / 2 / comprimento;
+  if (sInicio < folgaDaPonta || sFim > 1 - folgaDaPonta) {
+    throw new Error(
+      `${quantidade} pregas a cada ${distanciaMM} mm ocupam ${umParaMM(span)} mm, e a aresta ` +
+        `"${arestaId}" tem ${umParaMM(comprimento)} mm: nao cabem com folga de 5% nas pontas. ` +
+        `Diminua a quantidade ou a distancia.`,
+    );
+  }
+
+  // Perpendicular a CORDA (nao a tangente local): e o que garante eixos paralelos.
+  const inicio = peca.pontos[aresta.pontoInicioId]!;
+  const fim = peca.pontos[aresta.pontoFimId]!;
+  const cordaX = fim.x - inicio.x;
+  const cordaY = fim.y - inicio.y;
+  const norma = Math.hypot(cordaX, cordaY);
+  if (!(norma > 0)) {
+    throw new Error(`A aresta "${arestaId}" tem corda de comprimento zero.`);
+  }
+  const normal = { x: -cordaY / norma, y: cordaX / norma };
+  // O eixo atravessa a peca de sobra: metade do alcance para cada lado.
+  const xs = Object.values(peca.pontos).map((p) => p.x);
+  const ys = Object.values(peca.pontos).map((p) => p.y);
+  const alcance =
+    Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 10_000;
+
+  const profundidadeUM = Math.round(mmParaUM(opcoes.largura1MM + largura2MM) / 2);
+  const gestos: Gesto[] = [];
+  const eixoIds: Id[] = [];
+  for (let i = 0; i < quantidade; i++) {
+    const s = sInicio + (i * vao) / comprimento;
+    const ponto = pontoEmS(peca, arestaId, s);
+    const eixoId = `${semente}-eixo-${i}`;
+    eixoIds.push(eixoId);
+    gestos.push({
+      tipo: 'DefinirEixoDobra',
+      pecaId,
+      payload: {
+        eixoId,
+        p1: {
+          x: Math.round(ponto.x - normal.x * alcance),
+          y: Math.round(ponto.y - normal.y * alcance),
+        },
+        p2: {
+          x: Math.round(ponto.x + normal.x * alcance),
+          y: Math.round(ponto.y + normal.y * alcance),
+        },
+        direcao: 'dentro',
+        profundidadeUM,
+      },
+    });
+  }
+  gestos.push({
+    tipo: 'AbrirPregas',
+    pecaId,
+    payload: { eixoIds, prefixoId: semente },
+  });
+  return gestos;
+}
+
+/**
+ * Bainha (v1): a barra ganha a altura da dobra como margem, e um pique em cada
+ * aresta VIZINHA marca onde a barra vira.
+ *
+ * E o que a costureira precisa para dobrar no lugar certo. O refino da v2 — os
+ * lados da barra ESPELHADOS nas laterais, para bainha em lateral inclinada casar
+ * dobrada — esta dito como pendente na comparacao com o Audaces; ate la, isto
+ * aqui nao inventa geometria nenhuma: margem e pique, os dois ja testados.
+ */
+export function definirBainha(
+  modelo: Modelo,
+  pecaId: Id,
+  arestaId: Id,
+  alturaMM: number,
+  semente: string,
+): Gesto[] {
+  const peca = exigirPeca(modelo, pecaId);
+  const aresta = peca.arestas[arestaId];
+  if (aresta === undefined) {
+    throw new Error(
+      `A aresta "${arestaId}" nao existe na peca "${peca.metadados.nome}". ` +
+        `As arestas dela sao: ${Object.keys(peca.arestas).join(', ')}.`,
+    );
+  }
+  if (!(alturaMM > 0)) {
+    throw new Error(`A altura da bainha precisa ser positiva; veio ${alturaMM}.`);
+  }
+  const alturaUM = mmParaUM(alturaMM);
+
+  // As vizinhas: quem TERMINA onde a barra comeca, e quem COMECA onde ela termina.
+  const anterior = Object.values(peca.arestas).find(
+    (a) => a.id !== arestaId && a.pontoFimId === aresta.pontoInicioId,
+  );
+  const seguinte = Object.values(peca.arestas).find(
+    (a) => a.id !== arestaId && a.pontoInicioId === aresta.pontoFimId,
+  );
+  if (anterior === undefined || seguinte === undefined) {
+    throw new Error(
+      `Nao achei as arestas vizinhas da "${arestaId}" na peca "${peca.metadados.nome}" — o ` +
+        `contorno esta aberto?`,
+    );
+  }
+
+  const gestos: Gesto[] = [
+    { tipo: 'DefinirMargem', pecaId, payload: { arestaId, margemUM: alturaUM } },
+  ];
+  const marcar = (vizinha: Id, s: number, quala: string): void => {
+    const comprimento = medirAresta(peca, vizinha);
+    if (alturaUM > comprimento * 0.4) {
+      throw new Error(
+        `A bainha de ${alturaMM} mm e mais de 40% da aresta ${quala} "${vizinha}" ` +
+          `(${umParaMM(comprimento)} mm). Bainha dessa altura nao dobra — confira a medida.`,
+      );
+    }
+    gestos.push({
+      tipo: 'AdicionarPique',
+      pecaId,
+      payload: {
+        piqueId: `${semente}-pq-${quala}`,
+        arestaId: vizinha,
+        s: Math.min(0.98, Math.max(0.02, s)),
+        tipo: 'I',
+        ...PIQUE_PADRAO,
+      },
+    });
+  };
+  // Na anterior o pique fica a `altura` do FIM (que encosta na barra); na
+  // seguinte, a `altura` do INICIO.
+  marcar(anterior.id, 1 - alturaUM / medirAresta(peca, anterior.id), 'antes');
+  marcar(seguinte.id, alturaUM / medirAresta(peca, seguinte.id), 'depois');
+  return gestos;
+}
+
+/**
+ * Alinha uma peca pela CAIXA de outra: borda com borda, ou centro com centro.
+ * Translacao pura — nada de forma muda, e o desfazer devolve com um passo.
+ */
+export function alinharPeca(
+  modelo: Modelo,
+  pecaId: Id,
+  referenciaId: Id,
+  lado: 'esquerda' | 'direita' | 'topo' | 'base' | 'centro',
+): Gesto[] {
+  const peca = exigirPeca(modelo, pecaId);
+  const referencia = exigirPeca(modelo, referenciaId);
+  if (pecaId === referenciaId) {
+    throw new Error('Alinhar uma peca com ela mesma nao muda nada.');
+  }
+  const caixa = (p: Peca) => {
+    const xs = Object.values(p.pontos).map((v) => v.x);
+    const ys = Object.values(p.pontos).map((v) => v.y);
+    return {
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minY: Math.min(...ys),
+      maxY: Math.max(...ys),
+    };
+  };
+  const a = caixa(peca);
+  const b = caixa(referencia);
+  let dx = 0;
+  let dy = 0;
+  if (lado === 'esquerda') dx = b.minX - a.minX;
+  else if (lado === 'direita') dx = b.maxX - a.maxX;
+  else if (lado === 'topo') dy = b.maxY - a.maxY;
+  else if (lado === 'base') dy = b.minY - a.minY;
+  else {
+    dx = Math.round((b.minX + b.maxX) / 2 - (a.minX + a.maxX) / 2);
+    dy = Math.round((b.minY + b.maxY) / 2 - (a.minY + a.maxY) / 2);
+  }
+  return [{ tipo: 'TransladarPeca', pecaId, payload: { dx, dy } }];
+}
+
+/** Materializa o desdobrado da peca no eixo dado. Um gesto, um desfazer. */
+export function desdobrarPecaComando(modelo: Modelo, pecaId: Id, eixoDobraId: Id, semente: string): Gesto[] {
+  exigirPeca(modelo, pecaId);
+  return [{ tipo: 'DesdobrarPeca', pecaId, payload: { eixoDobraId, prefixoId: semente } }];
+}
+
+/** Abre uma pence na aresta: boca em mm centrada na fracao s, apice para dentro. */
+export function abrirPenceComando(
+  modelo: Modelo,
+  pecaId: Id,
+  arestaId: Id,
+  s: number,
+  aberturaMM: number,
+  profundidadeMM: number,
+  semente: string,
+): Gesto[] {
+  exigirPeca(modelo, pecaId);
+  return [
+    {
+      tipo: 'AbrirPence',
+      pecaId,
+      payload: {
+        arestaId,
+        s,
+        aberturaUM: mmParaUM(aberturaMM),
+        profundidadeUM: mmParaUM(profundidadeMM),
+        prefixoId: semente,
+      },
+    },
+  ];
+}
+
+/** Impoe o comprimento de uma aresta, em mm. */
+export function redefinirAresta(
+  modelo: Modelo,
+  pecaId: Id,
+  arestaId: Id,
+  comprimentoMM: number,
+): Gesto[] {
+  exigirPeca(modelo, pecaId);
+  return [
+    {
+      tipo: 'RedefinirAresta',
+      pecaId,
+      payload: { arestaId, comprimentoUM: mmParaUM(comprimentoMM) },
     },
   ];
 }

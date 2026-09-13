@@ -114,6 +114,12 @@ export {
 export {
   duplicarPeca,
   dimensionarPeca,
+  gerarPregas,
+  definirBainha,
+  alinharPeca,
+  desdobrarPecaComando,
+  abrirPenceComando,
+  redefinirAresta,
   renomearPeca,
   removerPeca,
   definirEncaixe,

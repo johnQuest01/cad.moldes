@@ -414,6 +414,19 @@ export type AbrirPence = Envelope<
   }
 >;
 
+/**
+ * Impoe o comprimento de uma aresta — o Redefinir perimetro do oficio. Escala
+ * uniforme em torno do ponto inicial; conta e recusas em
+ * redefinirComprimentoDaAresta no motor.
+ */
+export type RedefinirAresta = Envelope<
+  'RedefinirAresta',
+  {
+    readonly arestaId: Id;
+    readonly comprimentoUM: UM;
+  }
+>;
+
 /** Troca as propriedades de encaixe depois de a peca existir (quantidade, giro, par). */
 export type DefinirEncaixe = Envelope<
   'DefinirEncaixe',
@@ -571,6 +584,7 @@ export type Evento =
   | DimensionarPeca
   | DesdobrarPeca
   | AbrirPence
+  | RedefinirAresta
   | RotacionarPeca
   | TransladarPeca
   | InserirPonto

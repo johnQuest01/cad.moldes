@@ -101,6 +101,7 @@ export { duplicarPeca, type PecaDuplicada } from './duplicar.js';
 
 export { abrirPregas, aberturaDasPregas } from './pregas.js';
 export { abrirPence } from './pence.js';
+export { redefinirComprimentoDaAresta } from './redefinir.js';
 
 export { projetarPique, projetarPiques, type PiqueProjetado } from './pique.js';
 
