@@ -747,6 +747,51 @@ em('#digitalizar').addEventListener('click', () => {
 });
 
 /**
+ * O brinquedo: imagem de molde da internet vira peças SEM escala.
+ *
+ * É a vitrine do motor — a pessoa joga um diagrama achado na internet e as
+ * peças entram no palco para pence, pregas, espelhar, encaixar. A escala é
+ * inventada e DITA (o traçador manda o aviso junto); o caminho de corte
+ * continua sendo a digitalização com quadro calibrado, logo abaixo.
+ */
+em('#brincar').addEventListener('click', () => {
+  const arquivo = em<HTMLInputElement>('#brincar-arquivo').files?.[0];
+  if (arquivo === undefined) {
+    em('#estado-brincar').textContent = 'Escolha a imagem primeiro.';
+    return;
+  }
+  em('#estado-brincar').textContent = 'Escaneando os moldes…';
+
+  void (async () => {
+    try {
+      const imagem = await lerImagem(arquivo);
+      const { saida: b } = await pedirAoTrabalhador<Extract<Aviso, { tipo: 'brinquedo' }>>({
+        tarefa: 'brincar',
+        largura: imagem.largura,
+        altura: imagem.altura,
+        dados: imagem.dados,
+        tenantId: TENANT,
+        modeloId: MODELO,
+      });
+
+      const erros = b.problemas.filter((p) => p.gravidade === 'erro');
+      if (erros.length > 0 || b.eventos.length === 0) {
+        em('#estado-brincar').textContent = `Não deu. ${erros[0]?.mensagem ?? 'Nenhum molde na imagem.'}`;
+        return;
+      }
+
+      globalThis.localStorage.setItem(CHAVE_DIGITALIZADO, JSON.stringify(b.eventos));
+      apagarRascunho(armazem, TENANT, MODELO);
+      em('#estado-brincar').textContent =
+        `${b.pecas.length} molde(s) escaneado(s) — SEM escala, só para brincar. Recarregando…`;
+      globalThis.setTimeout(() => globalThis.location.reload(), 400);
+    } catch (erro) {
+      em('#estado-brincar').textContent = `Não deu para ler a imagem: ${String(erro)}`;
+    }
+  })();
+});
+
+/**
  * A calibração fica guardada no navegador porque ela é do ATELIÊ, não do modelo
  * (decisão I8): vale para toda foto tirada naquele quadro, hoje e daqui a um ano.
  */

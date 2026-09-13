@@ -19,7 +19,13 @@
  */
 import { reconstruir, type Evento } from '@cad/motor';
 import { encaixar, encaixarBuscando, type Encaixe } from '@cad/encaixe';
-import { digitalizar, type Calibracao, type Digitalizacao } from '@cad/foto';
+import {
+  digitalizar,
+  tracarDaInternet,
+  type Brinquedo,
+  type Calibracao,
+  type Digitalizacao,
+} from '@cad/foto';
 
 export type Pedido =
   | { readonly tarefa: 'encaixar'; readonly log: Evento[]; readonly tamanho: string }
@@ -39,12 +45,22 @@ export type Pedido =
       readonly modeloId: string;
       readonly toleranciaUM?: number;
       readonly limiarCroma?: number;
+    }
+  | {
+      /** O brinquedo: imagem de internet vira peças SEM escala, para demonstrar. */
+      readonly tarefa: 'brincar';
+      readonly largura: number;
+      readonly altura: number;
+      readonly dados: Uint8ClampedArray;
+      readonly tenantId: string;
+      readonly modeloId: string;
     };
 
 export type Aviso =
   | { readonly tipo: 'progresso'; readonly feitas: number; readonly total: number; readonly melhorUM: number }
   | { readonly tipo: 'encaixe'; readonly encaixe: Encaixe; readonly simplesUM: number }
   | { readonly tipo: 'digitalizacao'; readonly saida: Digitalizacao }
+  | { readonly tipo: 'brinquedo'; readonly saida: Brinquedo }
   | { readonly tipo: 'falhou'; readonly mensagem: string };
 
 const responder = (a: Aviso): void => {
@@ -90,6 +106,20 @@ globalThis.addEventListener('message', (evento: Event) => {
         encaixe: busca.melhor,
         simplesUM: simples.comprimentoUsadoUM,
       });
+      return;
+    }
+
+    if (pedido.tarefa === 'brincar') {
+      const saida = tracarDaInternet(
+        { largura: pedido.largura, altura: pedido.altura, dados: pedido.dados },
+        {
+          tenantId: pedido.tenantId,
+          modeloId: pedido.modeloId,
+          autor: 'brinquedo',
+          gerarId: gerador(),
+        },
+      );
+      responder({ tipo: 'brinquedo', saida });
       return;
     }
 

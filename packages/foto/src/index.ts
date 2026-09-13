@@ -89,3 +89,9 @@ export {
   type ObjetoConhecido,
   type OpcoesDeCalibragem,
 } from './calibrar.js';
+
+export {
+  tracarDaInternet,
+  type Brinquedo,
+  type OpcoesDoBrinquedo,
+} from './internet.js';
