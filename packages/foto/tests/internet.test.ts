@@ -125,3 +125,68 @@ describe('tracarDaInternet', () => {
     console.log(`deterministico: ${a.eventos.length} eventos identicos nas duas rodadas`);
   });
 });
+
+describe('O caso do encaixe colorido (a imagem real que derrubou a v1)', () => {
+  /** Tela COLORIDA: rgb por pixel, para desenhar o screenshot de encaixe. */
+  function telaRGB(largura: number, altura: number, cor: [number, number, number]): {
+    img: Imagem;
+    pintar: (x0: number, y0: number, x1: number, y1: number, cor: [number, number, number]) => void;
+  } {
+    const dados = new Uint8ClampedArray(largura * altura * 4);
+    const por = (i: number, c: [number, number, number]): void => {
+      dados[i * 4] = c[0];
+      dados[i * 4 + 1] = c[1];
+      dados[i * 4 + 2] = c[2];
+      dados[i * 4 + 3] = 255;
+    };
+    for (let i = 0; i < largura * altura; i++) por(i, cor);
+    return {
+      img: { largura, altura, dados },
+      pintar: (x0, y0, x1, y1, c) => {
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) por(y * largura + x, c);
+      },
+    };
+  }
+
+  it('três peças ENCOSTADAS de cores diferentes saem como TRÊS, com faixa cinza na borda e texto dentro', () => {
+    const ROSA: [number, number, number] = [230, 0, 126];
+    const PRETO: [number, number, number] = [20, 20, 20];
+    const LARANJA: [number, number, number] = [245, 166, 0];
+    const { img, pintar } = telaRGB(400, 260, [255, 255, 255]);
+    // As faixas cinza da barra do video, coladas na borda de cima e de baixo.
+    pintar(0, 0, 399, 11, [205, 205, 205]);
+    pintar(0, 248, 399, 259, [205, 205, 205]);
+    // Tres pecas lado a lado SEM vao: rosa | preta | laranja.
+    pintar(40, 60, 140, 200, ROSA);
+    pintar(141, 60, 240, 200, PRETO);
+    pintar(241, 60, 340, 200, LARANJA);
+    // "Texto" e seta de fio dentro da laranja: nao podem virar peca propria.
+    pintar(260, 120, 320, 128, PRETO);
+
+    const d = tracarDaInternet(img, { ...opcoes(), larguraMM: 800 });
+    console.log('--- encaixe colorido 400x260 = 800 mm ---');
+    console.log(
+      d.pecas
+        .map((p) => `${p.nome}: ${umParaMM(p.larguraUM).toFixed(0)} x ${umParaMM(p.alturaUM).toFixed(0)} mm`)
+        .join(' | '),
+    );
+    // TRES pecas — a v1 (claro/escuro) devolvia UMA mancha com tudo grudado,
+    // e o laranja claro sumia no fundo.
+    expect(d.pecas).toHaveLength(3);
+    // Cada uma com ~100 px x 2 mm = ~200 mm de largura, nao um blob de 300 px.
+    for (const p of d.pecas) {
+      expect(umParaMM(p.larguraUM)).toBeGreaterThan(180);
+      expect(umParaMM(p.larguraUM)).toBeLessThan(220);
+    }
+    // As faixas cinza NAO viraram peca: sao cor dominante da borda, logo fundo.
+    // (Se tivessem virado, seriam pecas de 800 mm de largura.)
+    // E o texto dentro da laranja foi consumido pelo preenchimento, nao duplicado.
+    const modelo = reconstruir(d.eventos);
+    expect(Object.keys(modelo.pecas)).toHaveLength(3);
+    for (const id of Object.keys(modelo.pecas)) {
+      const erros = validarInconsistencias(modelo, id).filter((p) => p.gravidade === 'erro');
+      expect(erros).toEqual([]);
+    }
+    console.log('3 pecas separadas, faixas de video ignoradas, texto interno consumido, validador limpo');
+  });
+});
