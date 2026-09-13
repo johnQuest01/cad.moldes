@@ -27,6 +27,8 @@ import { duplicarPeca } from '../duplicar.js';
 import { dividirPeca } from '../dividir.js';
 import { abrirPregas } from '../pregas.js';
 import { dimensionarPeca, espelharPeca, rotacionarPeca, transladarPeca } from '../transformar.js';
+import { desdobrarPeca } from '../dobra.js';
+import { abrirPence } from '../pence.js';
 import { VERSAO_SCHEMA_ATUAL, type Evento } from './tipos.js';
 
 /** Aplica um evento ao modelo e devolve o modelo novo. Nao muta a entrada. */
@@ -297,6 +299,18 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
       const { centro, fatorX, fatorY } = evento.payload;
       return comPeca(modelo, dimensionarPeca(peca, centro, fatorX, fatorY));
+    }
+
+    case 'DesdobrarPeca': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { eixoDobraId, prefixoId } = evento.payload;
+      return comPeca(modelo, desdobrarPeca(peca, eixoDobraId, prefixoId));
+    }
+
+    case 'AbrirPence': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { arestaId, s, aberturaUM, profundidadeUM, prefixoId } = evento.payload;
+      return comPeca(modelo, abrirPence(peca, arestaId, s, aberturaUM, profundidadeUM, prefixoId));
     }
 
     case 'EspelharPeca': {

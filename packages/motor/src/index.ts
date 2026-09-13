@@ -100,6 +100,7 @@ export { dividirPeca } from './dividir.js';
 export { duplicarPeca, type PecaDuplicada } from './duplicar.js';
 
 export { abrirPregas, aberturaDasPregas } from './pregas.js';
+export { abrirPence } from './pence.js';
 
 export { projetarPique, projetarPiques, type PiqueProjetado } from './pique.js';
 
@@ -115,6 +116,7 @@ export {
 } from './piques.js';
 
 export {
+  desdobrarPeca,
   contornoDesdobrado,
   linhaDeCorteDesdobrada,
   areaDesdobrada,

@@ -386,6 +386,34 @@ export type DimensionarPeca = Envelope<
   }
 >;
 
+/**
+ * MATERIALIZA a meia-peca desdobrada no eixo: vira a peca inteira, editavel.
+ * A geometria e a validacao moram em  no motor.
+ */
+export type DesdobrarPeca = Envelope<
+  'DesdobrarPeca',
+  {
+    readonly eixoDobraId: Id;
+    readonly prefixoId: Id;
+  }
+>;
+
+/**
+ * Abre uma PENCE no contorno: boca de  centrada na fracao  da
+ * aresta, apice a  para dentro. Geometria e recusas em
+ *  no motor.
+ */
+export type AbrirPence = Envelope<
+  'AbrirPence',
+  {
+    readonly arestaId: Id;
+    readonly s: number;
+    readonly aberturaUM: UM;
+    readonly profundidadeUM: UM;
+    readonly prefixoId: Id;
+  }
+>;
+
 /** Troca as propriedades de encaixe depois de a peca existir (quantidade, giro, par). */
 export type DefinirEncaixe = Envelope<
   'DefinirEncaixe',
@@ -541,6 +569,8 @@ export type Evento =
   | RemoverEixoDobra
   | EspelharPeca
   | DimensionarPeca
+  | DesdobrarPeca
+  | AbrirPence
   | RotacionarPeca
   | TransladarPeca
   | InserirPonto

@@ -79,6 +79,8 @@ export type CodigoErro =
   | 'EIXO_DOBRA_FORA_DO_CONTORNO'
   | 'DESDOBRA_NAO_FECHOU'
   | 'DESDOBRA_NAO_CRESCEU'
+  | 'DESDOBRA_APOIO_INVALIDO'
+  | 'PENCE_INVALIDA'
   // validacao (Bloco 10) — codigos que so aparecem como Problema, nunca lancados
   | 'CONTORNO_AUTO_INTERSECTADO'
   | 'PIQUE_ORFAO'
