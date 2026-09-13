@@ -138,12 +138,11 @@
   }
 
   /*
-   * A borda viva.
+   * A borda do cartão da IA: o anel de gradiente, PARADO.
    *
-   * Um quadrado de gradiente cônico girando atrás do cartão, com o cartão por cima
-   * deixando 1,5 px de folga: o que sobra é um anel fino de cor em movimento. Feito
-   * com pseudo-elemento em vez de `@property`, que ainda não é universal — e uma
-   * borda que não anima em metade dos navegadores não é uma borda, é um bug.
+   * Já foi um gradiente cônico girando. Saiu na revisão de usabilidade: numa
+   * interface que no resto é sóbria e ferramental, movimento perpétuo chama
+   * atenção para a parte menos crítica do sistema. A cor fica; o giro não.
    */
   .ia-moldura {
     position: relative; border-radius: 18px; padding: 1.5px; overflow: hidden;
@@ -153,10 +152,7 @@
   .ia-moldura::before {
     content: ''; position: absolute; inset: -160%; z-index: 0;
     background: conic-gradient(#4285f4, #9b72cb, #d96570, #f2a60c, #4285f4);
-    animation: ia-girar 7s linear infinite;
   }
-  @keyframes ia-girar { to { transform: rotate(1turn); } }
-  @media (prefers-reduced-motion: reduce) { .ia-moldura::before { animation: none; } }
 
   .ia-corpo {
     position: relative; z-index: 1; border-radius: 16.5px; background: var(--mesa);
@@ -236,8 +232,13 @@
         <div class="ia-linha">
           <input id="ia-modelo-id" type="text" title="Nome exato do modelo" style="flex:1" />
         </div>
+        <div class="ia-linha" id="ia-linha-servidor">
+          <input id="ia-servidor" type="text"
+            placeholder="servidor da empresa — ex.: https://api.suaconfeccao.com.br (a chave fica lá)"
+            style="flex:1" />
+        </div>
         <div class="ia-linha" id="ia-linha-chave">
-          <input id="ia-chave" type="password" placeholder="cole aqui a sua chave de API" />
+          <input id="ia-chave" type="password" placeholder="ou cole uma chave SÓ PARA TESTE nesta máquina" />
           <button id="ia-guardar-chave" type="button">conectar</button>
         </div>
         <textarea id="ia-texto" placeholder="Diga o que você quer. Ex.: põe 1 cm de costura na frente e me diz quanto de tecido gasta num rolo de 1,60 m."></textarea>
@@ -304,7 +305,9 @@
       <div id="opcoes-canto" hidden>
         <h2>Fillet / chanfro</h2>
         <label class="campo">
-          <span>Medida</span><b id="valor-canto">20 mm</b>
+          <span>Medida</span>
+          <b><input type="number" id="medida-canto-n" min="1" max="80" step="0.1" value="20"
+            style="width:64px"> mm</b>
           <input type="range" id="medida-canto" min="1" max="80" step="1" value="20">
         </label>
       </div>
@@ -325,7 +328,9 @@
       <div id="opcoes-par" hidden>
         <h2>Par de costura</h2>
         <label class="campo">
-          <span>Embebido</span><b id="valor-embebido">0 mm</b>
+          <span>Embebido</span>
+          <b><input type="number" id="embebido-n" min="0" max="50" step="0.5" value="0"
+            style="width:64px"> mm</b>
           <input type="range" id="embebido" min="0" max="50" step="1" value="0">
         </label>
         <p class="nota" style="margin-top:6px">
@@ -355,6 +360,17 @@
         </form>
       </div>
 
+      <div id="opcoes-rotacionar" hidden>
+        <h2>Rotacionar</h2>
+        <form id="giro-exato">
+          <input type="number" id="giro-graus" step="0.1" placeholder="graus">
+          <button type="submit">girar</button>
+        </form>
+        <p class="nota" style="margin-top:6px">
+          Positivo gira anti-horário. O arrasto continua valendo; Shift prende de 15 em 15.
+        </p>
+      </div>
+
       <div id="opcoes-pique" hidden>
         <h2>Pique</h2>
         <label class="campo">
@@ -367,7 +383,9 @@
           </select>
         </label>
         <label class="campo" style="margin-top:8px">
-          <span>Profundidade</span><b id="valor-profundidade">6.35 mm</b>
+          <span>Profundidade</span>
+          <b><input type="number" id="profundidade-n" min="1" max="20" step="0.05" value="6.35"
+            style="width:64px"> mm</b>
           <input type="range" id="profundidade" min="1" max="20" step="0.05" value="6.35">
         </label>
         <p class="nota" style="margin-top:8px">
@@ -421,6 +439,24 @@
           <button id="remover-peca" type="button">remover</button>
           <button id="dimensionar" type="button">dimensionar</button>
         </div>
+      </div>
+
+      <div>
+        <h2>Produção</h2>
+        <div class="fileira">
+          <button id="prod-pregas" type="button">pregas</button>
+          <button id="prod-pence" type="button">pence</button>
+          <button id="prod-bainha" type="button">bainha</button>
+        </div>
+        <div class="fileira" style="margin-top:5px">
+          <button id="prod-redefinir" type="button">medida da aresta</button>
+          <button id="prod-desdobrar" type="button">desdobrar</button>
+          <button id="prod-alinhar" type="button">alinhar</button>
+        </div>
+        <p class="nota" style="margin-top:6px">
+          Pregas, pence, bainha e medida agem na <em>aresta selecionada</em> (ferramenta V).
+          Desdobrar usa o eixo de dobra da peça ativa; alinhar leva a peça ativa até a outra selecionada.
+        </p>
       </div>
 
       <div>

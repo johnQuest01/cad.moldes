@@ -25,7 +25,8 @@
     "@types/pg": "^8.23.1",
     "fastify": "^5.12.3",
     "jose": "^6.2.12",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "@cad/ia": "0.1.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",

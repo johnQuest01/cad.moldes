@@ -17,6 +17,12 @@ import {
   lerRascunho,
   passosDaGrade,
   dimensionarPeca,
+  gerarPregas,
+  definirBainha,
+  alinharPeca,
+  desdobrarPecaComando,
+  abrirPenceComando,
+  redefinirAresta,
   removerPeca,
   renomearPeca,
   ferramentaMoverPonto,
@@ -27,6 +33,7 @@ import {
   ferramentaSelecionar,
   Sessao,
   type Ferramenta,
+  type Gesto,
   type OpcoesDeMover,
   type OpcoesDePique,
   type OpcoesDeCanto,
@@ -273,6 +280,7 @@ function atualizarPaineis(): void {
   em('#opcoes-mover').hidden = editor.ferramenta !== 'moverPonto';
   em('#opcoes-pique').hidden = editor.ferramenta !== 'pique';
   em('#opcoes-canto').hidden = !['fillet', 'chanfro'].includes(editor.ferramenta);
+  em('#opcoes-rotacionar').hidden = editor.ferramenta !== 'rotacionar';
   em('#opcoes-linha').hidden = editor.ferramenta !== 'linhaInterna';
   em('#opcoes-par').hidden = editor.ferramenta !== 'parCostura';
   em('#dica').textContent = DICAS[editor.ferramenta] ?? '';
@@ -362,17 +370,31 @@ em('#graduacao').addEventListener('change', (ev) => {
 
 // --------------------------------------------------------------- arquivo
 
-/** Guarda o rascunho a cada mudanca e conta para a interface como esta. */
+/**
+ * Guarda o rascunho a cada mudanca e conta para a interface como esta.
+ *
+ * A frase distingue de proposito ONDE cada coisa esta (revisao de usabilidade,
+ * item 2.2): "neste computador" nao e "no servidor", e fingir que e seria pior
+ * que dizer a verdade.
+ */
 function guardarEAvisar(): void {
   const guardou = guardarRascunho(armazem, TENANT, MODELO, sessao.pendentes);
   const quantos = sessao.pendentes.length;
   em('#estado-salvo').textContent =
     quantos === 0
-      ? 'Nada pendente.'
+      ? 'Tudo guardado NESTE COMPUTADOR. (O envio ao servidor entra na fase de sincronização.)'
       : guardou
-        ? `${quantos} evento(s) pendente(s), guardados no navegador.`
-        : `${quantos} pendente(s) — NAO foi possivel guardar no navegador.`;
+        ? `${quantos} alteração(ões) guardadas neste computador — fechar a aba não perde nada.`
+        : `${quantos} alteração(ões) SEM lugar para guardar: o navegador recusou. Não feche a aba.`;
 }
+
+// Cinto e suspensorio: o rascunho ja vai ao localStorage a cada gesto, mas se
+// GUARDAR falhou (navegador sem espaco, modo privado), fechar a aba perde de
+// verdade — e ai o navegador pergunta antes.
+globalThis.addEventListener('beforeunload', (evento) => {
+  const guardou = guardarRascunho(armazem, TENANT, MODELO, sessao.pendentes);
+  if (sessao.pendentes.length > 0 && !guardou) evento.preventDefault();
+});
 
 em('#salvar').addEventListener('click', () => {
   // Sem backend configurado, "salvar" e selar o que ja esta guardado localmente.
@@ -802,6 +824,12 @@ em('#renomear').addEventListener('click', () => {
 });
 em('#remover-peca').addEventListener('click', () => {
   if (editor.cena.pecas.length <= 1) return;
+  // Com o nome na pergunta: "Remover?" generico se confirma no reflexo,
+  // "Remover a peca 'frente'?" se le (revisao de usabilidade, item 2.1).
+  const nome = sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? pecaAtiva;
+  if (!globalThis.confirm(`Remover a peça "${nome}"? (Ctrl+Z desfaz enquanto a tela estiver aberta)`)) {
+    return;
+  }
   sessao.aplicar(...removerPeca(sessao.modelo, pecaAtiva));
   editor.selecao.podar(editor.cena);
   redesenhar();
@@ -838,6 +866,175 @@ em('#dimensionar').addEventListener('click', () => {
     // A faixa (25 a 400) e as demais recusas vem do motor, com a explicacao dele.
     em('#estado-salvo').textContent = String(erro);
   }
+});
+
+// ------------------------------------------------------------- producao
+//
+// Os comandos da aba PRODUCAO do oficio: pregas, pence, bainha, medida da
+// aresta, desdobrar e alinhar. Todos passam pela MESMA sessao do mouse — um
+// clique, um passo de desfazer — e toda recusa vem do motor com a explicacao.
+
+/** O centro da caixa da peca, para giro e escala exatos. */
+function centroDaPeca(pecaId: Id): { x: number; y: number } {
+  const pontos = Object.values(sessao.modelo.pecas[pecaId]!.pontos);
+  const xs = pontos.map((p) => p.x);
+  const ys = pontos.map((p) => p.y);
+  return {
+    x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2),
+    y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2),
+  };
+}
+
+/** A aresta que os comandos de producao usam. Sem aresta, a dica diz o caminho. */
+function arestaSelecionada(): { pecaId: Id; arestaId: Id } | null {
+  const arestas = editor.selecao.doTipo('aresta');
+  if (arestas.length === 1) return { pecaId: arestas[0]!.pecaId, arestaId: arestas[0]!.arestaId };
+  em('#estado-salvo').textContent =
+    arestas.length === 0
+      ? 'Selecione UMA aresta antes (ferramenta V, clique na borda da peça).'
+      : 'Há mais de uma aresta selecionada — deixe só a que recebe o comando.';
+  return null;
+}
+
+/** Pergunta um numero em mm (virgula vale), ou null se a pessoa desistiu. */
+function perguntarNumero(pergunta: string, padrao: string): number | null {
+  const resposta = globalThis.prompt(pergunta, padrao);
+  if (resposta === null) return null;
+  const v = Number(resposta.replace(',', '.'));
+  if (!Number.isFinite(v)) {
+    em('#estado-salvo').textContent = `"${resposta}" não é um número.`;
+    return null;
+  }
+  return v;
+}
+
+function comandoDeProducao(rotulo: string, gestos: () => readonly Gesto[] | null): void {
+  try {
+    const g = gestos();
+    if (g === null) return;
+    sessao.aplicar(...g);
+    redesenhar();
+    em('#estado-salvo').textContent = rotulo;
+  } catch (erro) {
+    em('#estado-salvo').textContent = String(erro instanceof Error ? erro.message : erro);
+  }
+}
+
+em('#giro-exato').addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const graus = Number(em<HTMLInputElement>('#giro-graus').value.replace(',', '.'));
+  if (!Number.isFinite(graus) || graus === 0) return;
+  comandoDeProducao(`Peça girada ${graus}°.`, () => [
+    { tipo: 'RotacionarPeca', pecaId: pecaAtiva, payload: { centro: centroDaPeca(pecaAtiva), anguloGraus: graus } },
+  ]);
+});
+
+em('#prod-pregas').addEventListener('click', () => {
+  const alvo = arestaSelecionada();
+  if (alvo === null) return;
+  const quantidade = perguntarNumero('Quantas pregas?', '3');
+  if (quantidade === null) return;
+  const distancia = perguntarNumero('Distância entre as pregas, em mm', '40');
+  if (distancia === null) return;
+  const largura1 = perguntarNumero('Largura 1 da prega, em mm', '15');
+  if (largura1 === null) return;
+  const largura2 = perguntarNumero('Largura 2, em mm (0 = prega simples)', '0');
+  if (largura2 === null) return;
+  comandoDeProducao(`${quantidade} prega(s) abertas — a peça alargou.`, () =>
+    gerarPregas(
+      sessao.modelo,
+      alvo.pecaId,
+      alvo.arestaId,
+      { quantidade, distanciaMM: distancia, largura1MM: largura1, largura2MM: largura2 },
+      `pg${sessao.versao}`,
+    ),
+  );
+});
+
+em('#prod-pence').addEventListener('click', () => {
+  const alvo = arestaSelecionada();
+  if (alvo === null) return;
+  const abertura = perguntarNumero('Abertura da boca da pence, em mm', '30');
+  if (abertura === null) return;
+  const profundidade = perguntarNumero('Profundidade (da borda ao ápice), em mm', '100');
+  if (profundidade === null) return;
+  const posicao = perguntarNumero('Posição na aresta, em % (50 = no meio)', '50');
+  if (posicao === null) return;
+  comandoDeProducao('Pence aberta.', () =>
+    abrirPenceComando(
+      sessao.modelo,
+      alvo.pecaId,
+      alvo.arestaId,
+      posicao / 100,
+      abertura,
+      profundidade,
+      `pn${sessao.versao}`,
+    ),
+  );
+});
+
+em('#prod-bainha').addEventListener('click', () => {
+  const alvo = arestaSelecionada();
+  if (alvo === null) return;
+  const altura = perguntarNumero('Altura da bainha, em mm', '25');
+  if (altura === null) return;
+  comandoDeProducao(`Bainha de ${altura} mm: margem na barra e pique nas laterais.`, () =>
+    definirBainha(sessao.modelo, alvo.pecaId, alvo.arestaId, altura, `bn${sessao.versao}`),
+  );
+});
+
+em('#prod-redefinir').addEventListener('click', () => {
+  const alvo = arestaSelecionada();
+  if (alvo === null) return;
+  const atual = umParaMM(medirAresta(sessao.modelo.pecas[alvo.pecaId]!, alvo.arestaId));
+  const nova = perguntarNumero(
+    `A aresta mede ${atual.toFixed(1)} mm hoje. Novo comprimento, em mm`,
+    atual.toFixed(1),
+  );
+  if (nova === null) return;
+  comandoDeProducao(`Aresta redefinida para ${nova} mm.`, () =>
+    redefinirAresta(sessao.modelo, alvo.pecaId, alvo.arestaId, nova),
+  );
+});
+
+em('#prod-desdobrar').addEventListener('click', () => {
+  const eixos = Object.keys(sessao.modelo.pecas[pecaAtiva]?.eixosDobra ?? {});
+  if (eixos.length === 0) {
+    em('#estado-salvo').textContent =
+      'A peça ativa não tem eixo de dobra. Trace um com a ferramenta X antes de desdobrar.';
+    return;
+  }
+  const eixoId =
+    eixos.length === 1
+      ? eixos[0]!
+      : globalThis.prompt(`Qual eixo? (${eixos.join(', ')})`, eixos[0]!);
+  if (eixoId === null) return;
+  comandoDeProducao('Peça desdobrada — a metade virou inteira.', () =>
+    desdobrarPecaComando(sessao.modelo, pecaAtiva, eixoId, `dd${sessao.versao}`),
+  );
+});
+
+em('#prod-alinhar').addEventListener('click', () => {
+  const outras = editor.selecao.doTipo('peca').filter((p) => p.pecaId !== pecaAtiva);
+  if (outras.length !== 1) {
+    em('#estado-salvo').textContent =
+      'Selecione a peça de REFERÊNCIA (ferramenta V, clique dentro dela). A peça ativa anda até ela.';
+    return;
+  }
+  const lado = globalThis.prompt(
+    'Alinhar por qual lado? (esquerda, direita, topo, base ou centro)',
+    'base',
+  );
+  if (lado === null) return;
+  const lados = ['esquerda', 'direita', 'topo', 'base', 'centro'] as const;
+  const escolhido = lados.find((l) => l === lado.trim().toLowerCase());
+  if (escolhido === undefined) {
+    em('#estado-salvo').textContent = `"${lado}" não é um lado. Use: ${lados.join(', ')}.`;
+    return;
+  }
+  comandoDeProducao(`Peça alinhada pela ${escolhido}.`, () =>
+    alinharPeca(sessao.modelo, pecaAtiva, outras[0]!.pecaId, escolhido),
+  );
 });
 
 // ------------------------------------------------------------- controles
@@ -965,20 +1162,36 @@ em('#camadas').addEventListener('change', (ev) => {
 (em('#tipo-pique') as HTMLSelectElement).addEventListener('change', (ev) => {
   opcoesDePique.tipo = (ev.target as HTMLSelectElement).value as TipoPique;
 });
-(em('#profundidade') as HTMLInputElement).addEventListener('input', (ev) => {
-  opcoesDePique.profundidadeMM = Number((ev.target as HTMLInputElement).value);
-  em('#valor-profundidade').textContent = `${opcoesDePique.profundidadeMM} mm`;
+/**
+ * Slider e campo numérico amarrados no MESMO valor (revisão de usabilidade,
+ * item 1.3): slider explora, campo especifica — 12,5 mm não se arrasta.
+ * O padrão veio do `#exato` (dx/dy), que já convivia bem com o arrasto.
+ */
+function parear(idRange: string, idNumero: string, aoMudar: (valor: number) => void): void {
+  const range = em<HTMLInputElement>(idRange);
+  const numero = em<HTMLInputElement>(idNumero);
+  range.addEventListener('input', () => {
+    numero.value = range.value;
+    aoMudar(Number(range.value));
+  });
+  numero.addEventListener('input', () => {
+    const v = Number(numero.value.replace(',', '.'));
+    if (!Number.isFinite(v)) return;
+    range.value = String(v); // o range trava nos limites dele; o valor real e o digitado
+    aoMudar(v);
+  });
+}
+parear('#profundidade', '#profundidade-n', (v) => {
+  opcoesDePique.profundidadeMM = v;
 });
-(em('#medida-canto') as HTMLInputElement).addEventListener('input', (ev) => {
-  opcoesDeCanto.medidaMM = Number((ev.target as HTMLInputElement).value);
-  em('#valor-canto').textContent = `${opcoesDeCanto.medidaMM} mm`;
+parear('#medida-canto', '#medida-canto-n', (v) => {
+  opcoesDeCanto.medidaMM = v;
+});
+parear('#embebido', '#embebido-n', (v) => {
+  opcoesDePar.embebidoMM = v;
 });
 (em('#tipo-linha') as HTMLSelectElement).addEventListener('change', (ev) => {
   opcoesDeLinha.tipo = (ev.target as HTMLSelectElement).value as OpcoesDeLinha['tipo'];
-});
-(em('#embebido') as HTMLInputElement).addEventListener('input', (ev) => {
-  opcoesDePar.embebidoMM = Number((ev.target as HTMLInputElement).value);
-  em('#valor-embebido').textContent = `${opcoesDePar.embebidoMM} mm`;
 });
 (em('#encaixe') as HTMLInputElement).addEventListener('change', (ev) => {
   estado.encaixe = (ev.target as HTMLInputElement).checked;
@@ -1101,6 +1314,7 @@ const CHAVE_API = 'cad.moldes:chave-ia';
 const CHAVE_PROVEDOR = 'cad.moldes:provedor-ia';
 const CHAVE_MODELO_IA = 'cad.moldes:modelo-ia';
 const CHAVE_BASE = 'cad.moldes:base-ia';
+const CHAVE_SERVIDOR = 'cad.moldes:servidor-ia';
 
 const conversa: Turno[] = [];
 /** A última foto lida, para `redigitalizar_foto` poder tentar de novo com outros ajustes. */
@@ -1355,8 +1569,16 @@ async function executarAcao(
   }
 }
 
-/** Uma chamada ao provedor escolhido. */
-async function chamarModelo(chave: string): Promise<Resposta> {
+/**
+ * Uma chamada ao modelo — pelo SERVIDOR da empresa quando ele esta configurado,
+ * direto ao provedor so no modo de teste local.
+ *
+ * A revisao de usabilidade (item 1.1) apontou o que o proprio painel avisava:
+ * chave em localStorage numa maquina de chao de fabrica e a chave da empresa
+ * exposta ao console e a qualquer XSS. Com o servidor configurado, a chave mora
+ * em variavel de ambiente la, o navegador nunca a ve, e a rota exige o tenant.
+ */
+async function chamarModelo(chave: string | null): Promise<Resposta> {
   const provedor = provedorAtual();
   const pedido = {
     modelo: em<HTMLInputElement>('#ia-modelo-id').value.trim(),
@@ -1371,6 +1593,22 @@ async function chamarModelo(chave: string): Promise<Resposta> {
     })),
     conversa,
   };
+
+  const servidor = (globalThis.localStorage.getItem(CHAVE_SERVIDOR) ?? '').trim();
+  if (servidor !== '') {
+    const resposta = await fetch(`${servidor.replace(/\/+$/, '')}/ia/chamar`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': TENANT },
+      body: JSON.stringify({ provedorId: provedor.id, pedido }),
+    });
+    if (!resposta.ok) {
+      const corpo = await resposta.text();
+      throw new Error(`O servidor respondeu ${resposta.status}: ${corpo.slice(0, 300)}`);
+    }
+    return (await resposta.json()) as Resposta;
+  }
+
+  if (chave === null) throw new Error('Sem servidor configurado e sem chave local.');
   const base = globalThis.localStorage.getItem(CHAVE_BASE) ?? undefined;
   const resposta = await fetch(provedor.url(pedido, chave, base), {
     method: 'POST',
@@ -1390,7 +1628,7 @@ async function chamarModelo(chave: string): Promise<Resposta> {
  * O limite de voltas existe porque um modelo confuso entra em ciclo, e ciclo aqui
  * gasta o dinheiro do cliente. Oito é folgado para qualquer pedido real.
  */
-async function rodada(chave: string): Promise<void> {
+async function rodada(chave: string | null): Promise<void> {
   for (let volta = 0; volta < 8; volta++) {
     const r = await chamarModelo(chave);
     conversa.push({ papel: 'assistente', texto: r.texto, chamadas: r.chamadas });
@@ -1447,13 +1685,31 @@ function aoTrocarProvedor(): void {
 }
 
 function mostrarChave(): void {
-  const tem = globalThis.localStorage.getItem(CHAVE_API) !== null;
-  em('#ia-linha-chave').hidden = tem;
-  em('#ia-trocar-chave').hidden = !tem;
-  em('#ia-texto').hidden = !tem;
-  em('#ia-enviar').hidden = !tem;
-  if (!tem) iaEstado('Escolha o provedor e cole a chave. Ela fica só neste navegador.');
+  const servidor = (globalThis.localStorage.getItem(CHAVE_SERVIDOR) ?? '').trim() !== '';
+  const temChave = globalThis.localStorage.getItem(CHAVE_API) !== null;
+  const pronto = servidor || temChave;
+  em<HTMLInputElement>('#ia-servidor').value = globalThis.localStorage.getItem(CHAVE_SERVIDOR) ?? '';
+  em('#ia-linha-servidor').hidden = temChave && !servidor;
+  em('#ia-linha-chave').hidden = pronto;
+  em('#ia-trocar-chave').hidden = !temChave || servidor;
+  em('#ia-texto').hidden = !pronto;
+  em('#ia-enviar').hidden = !pronto;
+  if (servidor) {
+    iaEstado('Pelo servidor da empresa — a chave fica lá, não neste navegador.');
+  } else if (!pronto) {
+    iaEstado(
+      'O caminho certo é o servidor da empresa (a chave fica lá). ' +
+        'A chave colada aqui é SÓ para teste nesta máquina: ela fica exposta neste navegador.',
+    );
+  }
 }
+
+em('#ia-servidor').addEventListener('change', () => {
+  const valor = em<HTMLInputElement>('#ia-servidor').value.trim();
+  if (valor === '') globalThis.localStorage.removeItem(CHAVE_SERVIDOR);
+  else globalThis.localStorage.setItem(CHAVE_SERVIDOR, valor);
+  mostrarChave();
+});
 
 em('#ia-provedor').addEventListener('change', () => {
   globalThis.localStorage.setItem(CHAVE_PROVEDOR, em<HTMLSelectElement>('#ia-provedor').value);
@@ -1516,7 +1772,8 @@ em('#ia-trocar-chave').addEventListener('click', () => {
 
 async function enviar(): Promise<void> {
   const chave = globalThis.localStorage.getItem(CHAVE_API);
-  if (chave === null) return;
+  const temServidor = (globalThis.localStorage.getItem(CHAVE_SERVIDOR) ?? '').trim() !== '';
+  if (chave === null && !temServidor) return;
   const caixa = em<HTMLTextAreaElement>('#ia-texto');
   const pedido = caixa.value.trim();
   if (pedido === '') return;
