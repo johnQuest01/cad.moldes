@@ -16,6 +16,7 @@ import {
   guardarRascunho,
   lerRascunho,
   passosDaGrade,
+  dimensionarPeca,
   removerPeca,
   renomearPeca,
   ferramentaMoverPonto,
@@ -804,6 +805,39 @@ em('#remover-peca').addEventListener('click', () => {
   sessao.aplicar(...removerPeca(sessao.modelo, pecaAtiva));
   editor.selecao.podar(editor.cena);
   redesenhar();
+});
+
+/**
+ * Dimensionar / Encolhimento: a peca cresce ou encolhe por percentual, X e Y
+ * separados — a ficha do tecido fala assim ("compensar 3% no comprimento").
+ * 100 = como esta. Vira UM passo de desfazer.
+ */
+em('#dimensionar').addEventListener('click', () => {
+  const nome = sessao.modelo.pecas[pecaAtiva]?.metadados.nome ?? pecaAtiva;
+  const respostaL = globalThis.prompt(
+    `Novo tamanho de "${nome}" na LARGURA, em % (100 = como está; 103 compensa 3% de encolhimento)`,
+    '100',
+  );
+  if (respostaL === null) return;
+  const respostaA = globalThis.prompt(
+    `Novo tamanho de "${nome}" na ALTURA, em % (vazio = igual à largura)`,
+    respostaL,
+  );
+  if (respostaA === null) return;
+  const px = Number(respostaL.replace(',', '.'));
+  const py = respostaA.trim() === '' ? px : Number(respostaA.replace(',', '.'));
+  if (!Number.isFinite(px) || !Number.isFinite(py)) {
+    em('#estado-salvo').textContent = 'Dimensionar: percentual invalido.';
+    return;
+  }
+  try {
+    sessao.aplicar(...dimensionarPeca(sessao.modelo, pecaAtiva, px, py));
+    redesenhar();
+    em('#estado-salvo').textContent = `"${nome}" dimensionada para ${px}% × ${py}%.`;
+  } catch (erro) {
+    // A faixa (25 a 400) e as demais recusas vem do motor, com a explicacao dele.
+    em('#estado-salvo').textContent = String(erro);
+  }
 });
 
 // ------------------------------------------------------------- controles

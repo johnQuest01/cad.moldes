@@ -26,7 +26,7 @@ import { adicionarPique, moverPique, removerPique } from '../piques.js';
 import { duplicarPeca } from '../duplicar.js';
 import { dividirPeca } from '../dividir.js';
 import { abrirPregas } from '../pregas.js';
-import { espelharPeca, rotacionarPeca, transladarPeca } from '../transformar.js';
+import { dimensionarPeca, espelharPeca, rotacionarPeca, transladarPeca } from '../transformar.js';
 import { VERSAO_SCHEMA_ATUAL, type Evento } from './tipos.js';
 
 /** Aplica um evento ao modelo e devolve o modelo novo. Nao muta a entrada. */
@@ -291,6 +291,12 @@ export function fold(modelo: Modelo | null, evento: Evento): Modelo {
       const eixosDobra = { ...peca.eixosDobra };
       delete eixosDobra[evento.payload.eixoId];
       return comPeca(modelo, { ...peca, eixosDobra });
+    }
+
+    case 'DimensionarPeca': {
+      const peca = obterPeca(modelo, evento.pecaId, evento.tipo, evento.id);
+      const { centro, fatorX, fatorY } = evento.payload;
+      return comPeca(modelo, dimensionarPeca(peca, centro, fatorX, fatorY));
     }
 
     case 'EspelharPeca': {

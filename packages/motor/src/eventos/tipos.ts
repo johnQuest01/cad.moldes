@@ -370,6 +370,22 @@ export type AbrirPregas = Envelope<
   }
 >;
 
+/**
+ * Dimensiona a peca por fatores por eixo — o Encolhimento e o Dimensionar do oficio.
+ *
+ * Os fatores viajam como NUMERO (1,03 = cresce 3%), nunca como percentual, para o
+ * evento nao depender de convencao de tela. Margens e faca do pique nao escalam;
+ * ver `dimensionarPeca` no motor, que e quem decide isso e explica por que.
+ */
+export type DimensionarPeca = Envelope<
+  'DimensionarPeca',
+  {
+    readonly centro: Vetor2;
+    readonly fatorX: number;
+    readonly fatorY: number;
+  }
+>;
+
 /** Troca as propriedades de encaixe depois de a peca existir (quantidade, giro, par). */
 export type DefinirEncaixe = Envelope<
   'DefinirEncaixe',
@@ -524,6 +540,7 @@ export type Evento =
   | DefinirEixoDobra
   | RemoverEixoDobra
   | EspelharPeca
+  | DimensionarPeca
   | RotacionarPeca
   | TransladarPeca
   | InserirPonto

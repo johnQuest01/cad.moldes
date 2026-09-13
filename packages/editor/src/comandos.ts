@@ -200,3 +200,39 @@ function larguraDe(peca: Peca): number {
   const xs = Object.values(peca.pontos).map((p) => p.x);
   return xs.length === 0 ? 0 : Math.max(...xs) - Math.min(...xs);
 }
+
+/**
+ * Dimensiona a peca por percentuais — o Encolhimento e o Dimensionar do oficio.
+ *
+ * A tela fala em PERCENTUAL DO TAMANHO FINAL (100 = como esta, 103 = cresce 3%),
+ * porque e assim que a ficha do tecido chega: "compensar 3% no comprimento". O
+ * evento viaja em FATOR (1,03), que nao depende de convencao de tela.
+ *
+ * O centro e o meio da caixa da peca: dimensionar nao e mover — a peca cresce ou
+ * encolhe no lugar, e o operador nao a perde de vista.
+ */
+export function dimensionarPeca(
+  modelo: Modelo,
+  pecaId: Id,
+  percentualLargura: number,
+  percentualAltura: number,
+): Gesto[] {
+  const peca = exigirPeca(modelo, pecaId);
+  const xs = Object.values(peca.pontos).map((p) => p.x);
+  const ys = Object.values(peca.pontos).map((p) => p.y);
+  const centro = {
+    x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2),
+    y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2),
+  };
+  return [
+    {
+      tipo: 'DimensionarPeca',
+      pecaId,
+      payload: {
+        centro,
+        fatorX: percentualLargura / 100,
+        fatorY: percentualAltura / 100,
+      },
+    },
+  ];
+}

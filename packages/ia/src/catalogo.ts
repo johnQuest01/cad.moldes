@@ -7,6 +7,7 @@
  */
 import {
   definirEncaixe,
+  dimensionarPeca,
   definirMargem,
   duplicarPeca,
   removerPeca,
@@ -349,6 +350,58 @@ const simplificar: Ferramenta = {
     }),
 };
 
+const dimensionar: Ferramenta = {
+  nome: 'dimensionar_peca',
+  // Mexe no desenho de verdade — por isso tem a licença E pede confirmação. É a
+  // segunda ferramenta com essa licença na vida do catálogo, e o critério para
+  // entrar foi o mesmo: operação de ofício (compensar encolhimento de malha),
+  // número explícito, e um humano dizendo sim antes de acontecer.
+  licenca: { alteraForma: true, criaPeca: false, removePeca: false },
+  descricao:
+    'Dimensiona a peça por percentual, com X e Y separados — é o ENCOLHIMENTO do ofício: ' +
+    'a ficha do tecido diz "encolhe 3% no comprimento e 2% na largura", então o molde é ' +
+    'ampliado para 103 × 102 antes do corte. 100 = como está. Exige os números: se a ' +
+    'pessoa não disser os percentuais, PERGUNTE — nunca chute encolhimento. Margem de ' +
+    'costura e piques não mudam de tamanho, só a peça. DESTRUTIVO: pede confirmação.',
+  esquema: objeto(
+    {
+      ...PECA_ARG,
+      percentual_largura: {
+        type: 'number',
+        description: 'Novo tamanho em X, em % do atual. 103 = cresce 3%. Entre 25 e 400.',
+      },
+      percentual_altura: {
+        type: 'number',
+        description: 'Novo tamanho em Y, em % do atual. Se faltar, usa o mesmo da largura.',
+      },
+    },
+    ['peca', 'percentual_largura'],
+  ),
+  executar: (modelo, args) =>
+    tentar(() => {
+      const achada = acharPeca(modelo, String(args.peca ?? ''));
+      if (achada === null) return semPeca(modelo, String(args.peca ?? ''));
+      const px = Number(args.percentual_largura);
+      const py = args.percentual_altura === undefined ? px : Number(args.percentual_altura);
+      for (const p of [px, py]) {
+        if (!Number.isFinite(p) || p < 25 || p > 400) {
+          return erro(
+            `Percentual ${String(p)} fora da faixa (25 a 400). Encolhimento de tecido fica na ` +
+              `casa de poucos por cento: para compensar 3%, o percentual é 103.`,
+          );
+        }
+      }
+      return {
+        tipo: 'confirmar',
+        pergunta:
+          `Dimensionar "${achada.peca.metadados.nome}" para ${px}% na largura e ${py}% na ` +
+          `altura? O desenho da peça muda de tamanho de verdade.`,
+        gestos: dimensionarPeca(modelo, achada.id, px, py),
+        resumo: `"${achada.peca.metadados.nome}" dimensionada para ${px}% × ${py}%.`,
+      };
+    }),
+};
+
 const espelhar: Ferramenta = {
   nome: 'espelhar_peca',
   descricao:
@@ -595,6 +648,7 @@ export const CATALOGO: readonly Ferramenta[] = [
   simplificar,
   espelhar,
   rotacionar,
+  dimensionar,
   papel,
   encaixarFerramenta,
   exportar,

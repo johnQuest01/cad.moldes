@@ -113,6 +113,7 @@ export {
 
 export {
   duplicarPeca,
+  dimensionarPeca,
   renomearPeca,
   removerPeca,
   definirEncaixe,

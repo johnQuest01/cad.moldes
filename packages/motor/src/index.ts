@@ -88,6 +88,7 @@ export {
   transladarPeca,
   rotacionarPeca,
   espelharPeca,
+  dimensionarPeca,
   refletirPonto,
   direcaoDoEixo,
   ladoDoEixo,

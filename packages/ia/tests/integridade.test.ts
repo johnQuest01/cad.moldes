@@ -246,7 +246,7 @@ describe('O que a IA NÃO pode fazer, e a guarda pega', () => {
 });
 
 describe('Quem tem licença, e é pouca gente', () => {
-  it('só três ferramentas têm licença, e a de mexer no desenho é UMA', () => {
+  it('só quatro ferramentas têm licença, e as de mexer no desenho são DUAS', () => {
     const comLicenca = CATALOGO.filter((f) => f.licenca !== undefined);
     console.log('--- licencas do catalogo ---');
     for (const f of comLicenca) {
@@ -260,8 +260,14 @@ describe('Quem tem licença, e é pouca gente', () => {
       `${CATALOGO.length} ferramentas no total | ${comLicenca.length} com licenca | ` +
         `${mexemNaForma.length} pode mexer no desenho`,
     );
-    expect(mexemNaForma.map((f) => f.nome)).toEqual(['simplificar_contorno']);
-    expect(comLicenca).toHaveLength(3);
+    // O censo e deliberado: quem entra aqui entra NOMEADO, com o criterio dito.
+    // dimensionar_peca entrou em 2026-09-13 — e o Encolhimento do oficio, opera
+    // com percentual explicito e pede confirmacao humana antes de acontecer.
+    expect(mexemNaForma.map((f) => f.nome).sort()).toEqual([
+      'dimensionar_peca',
+      'simplificar_contorno',
+    ]);
+    expect(comLicenca).toHaveLength(4);
   });
 
   it('nenhuma ferramenta de encaixe ou exportação tem licença nenhuma', () => {

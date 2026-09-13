@@ -149,3 +149,64 @@ function transformar(peca: Peca, fn: (p: Vetor2) => Vetor2): Peca {
 
   return { ...peca, pontos, segmentos, eixosDobra };
 }
+
+/**
+ * Dimensiona a peca por fatores independentes em X e Y, em torno de um centro.
+ *
+ * E a operacao por tras de dois botoes de oficio:
+ *
+ *  - **Encolhimento**: malha encolhe na lavagem, e encolhe DIFERENTE em cada
+ *    sentido — 3% no comprimento, 2% na largura e um numero comum. O molde e
+ *    ampliado ANTES do corte para a peca lavada voltar a medida; por isso os
+ *    fatores sao por eixo, nao um so.
+ *  - **Dimensionar**: escalar a peca inteira por percentual.
+ *
+ * ## Por que a Bezier pode ser escalada direto
+ * Escala e transformacao afim, e Bezier e invariante afim: escalar os pontos de
+ * controle E escalar a curva. Nada e reamostrado.
+ *
+ * ## O que NAO escala, de proposito
+ *  - **Margens de costura**: 1 cm de costura e 1 cm de costura — a maquina de
+ *    costura nao encolheu. Quem quiser outra margem declara outra margem.
+ *  - **Altura e boca dos piques**: sao a faca do notcher, propriedade da
+ *    ferramenta, nao do tecido. A POSICAO do pique acompanha sozinha, porque e
+ *    fracao do comprimento da aresta.
+ *
+ * ## Fator negativo e recusado
+ * Fator negativo seria um espelhamento disfarcado, com winding invertido por um
+ * caminho que nao renormaliza. Espelhar tem operacao propria.
+ */
+export function dimensionarPeca(
+  peca: Peca,
+  centro: Vetor2,
+  fatorX: number,
+  fatorY: number,
+): Peca {
+  for (const [nome, fator] of [
+    ['fatorX', fatorX],
+    ['fatorY', fatorY],
+  ] as const) {
+    exigir(
+      Number.isFinite(fator) && fator > 0,
+      'VALOR_NAO_FINITO',
+      `O ${nome} de dimensionarPeca precisa ser um numero positivo; recebi ${String(fator)}. ` +
+        `Para espelhar, use espelharPeca; para nao mexer num eixo, use fator 1.`,
+      { pecaId: peca.id, fator },
+    );
+    // 4x para cima ou para baixo cobre qualquer encolhimento e qualquer escala de
+    // oficio com folga larga. Fora disso e quase sempre engano de unidade (digitar
+    // 3 querendo 3% em vez de 1,03) — e um molde 3x maior corta 9x mais tecido.
+    exigir(
+      fator >= 0.25 && fator <= 4,
+      'VALOR_NAO_FINITO',
+      `O ${nome} ${String(fator)} esta fora da faixa aceita (0,25 a 4). Encolhimento de tecido ` +
+        `fica na casa de poucos por cento — fator 0,97, nao 0,03. Confira a unidade.`,
+      { pecaId: peca.id, fator },
+    );
+  }
+
+  return transformar(peca, (p) => ({
+    x: Math.round(centro.x + (p.x - centro.x) * fatorX),
+    y: Math.round(centro.y + (p.y - centro.y) * fatorY),
+  }));
+}

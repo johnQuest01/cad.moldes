@@ -363,3 +363,37 @@ describe('As ferramentas do leigo', () => {
     expect(f.descricao).toContain('borda estranha');
   });
 });
+
+describe('Dimensionar / Encolhimento', () => {
+  it('pede confirmacao, e o gesto confirmado passa no motor com a medida exata', () => {
+    const r = usar('dimensionar_peca', { peca: 'FRENTE', percentual_largura: 103, percentual_altura: 102 });
+    expect(r.tipo).toBe('confirmar');
+    if (r.tipo !== 'confirmar') return;
+    console.log(`pergunta: "${r.pergunta}"`);
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    const anel = Object.values(depois.pecas['p1']!.pontos);
+    const largura = Math.max(...anel.map((p) => p.x)) - Math.min(...anel.map((p) => p.x));
+    const altura = Math.max(...anel.map((p) => p.y)) - Math.min(...anel.map((p) => p.y));
+    console.log(`FRENTE 400 x 700 -> ${umParaMM(largura)} x ${umParaMM(altura)} mm`);
+    expect(umParaMM(largura)).toBe(412);
+    expect(umParaMM(altura)).toBe(714);
+  });
+
+  it('sem percentual_altura, usa o mesmo da largura', () => {
+    const r = usar('dimensionar_peca', { peca: 'MANGA', percentual_largura: 110 });
+    expect(r.tipo).toBe('confirmar');
+    if (r.tipo !== 'confirmar') return;
+    const depois = aplicar(modeloDeTeste(), r.gestos);
+    const anel = Object.values(depois.pecas['p2']!.pontos);
+    const altura = Math.max(...anel.map((p) => p.y)) - Math.min(...anel.map((p) => p.y));
+    console.log(`MANGA 300 x 500, so largura 110 -> altura ${umParaMM(altura)} mm (acompanhou)`);
+    expect(umParaMM(altura)).toBe(550);
+  });
+
+  it('percentual fora da faixa e recusado ANTES de virar gesto — o engano do "3%"', () => {
+    const r = usar('dimensionar_peca', { peca: 'FRENTE', percentual_largura: 3 });
+    console.log(r.tipo === 'erro' ? r.mensagem : r);
+    expect(r.tipo).toBe('erro');
+    if (r.tipo === 'erro') expect(r.mensagem).toContain('103');
+  });
+});
