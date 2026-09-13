@@ -123,10 +123,27 @@ const sessao = new Sessao(logDeAbertura(), {
   autor: 'modelista',
   gerarId: () => gerar(),
 });
+/**
+ * Rascunho que não cola no log atual é DESCARTADO com aviso — nunca tela morta.
+ *
+ * O caso real que derrubou a tela no teste: brincar/digitalizar troca o modelo
+ * inteiro, e um rascunho órfão da sessão anterior (uma pence aberta na peça que
+ * não existe mais) estourava `aplicar` no boot, sem ninguém para pegar. O molde
+ * de verdade está no log selado; o rascunho é o pendente — perder o pendente
+ * com aviso é chato, morrer sem mensagem é inaceitável.
+ */
+let avisoDoBoot: string | null = null;
 if (guardado.length > 0) {
-  sessao.aplicar(
-    ...guardado.map((e) => ({ tipo: e.tipo, pecaId: e.pecaId, payload: e.payload })),
-  );
+  try {
+    sessao.aplicar(
+      ...guardado.map((e) => ({ tipo: e.tipo, pecaId: e.pecaId, payload: e.payload })),
+    );
+  } catch (erro) {
+    apagarRascunho(armazem, TENANT, MODELO);
+    avisoDoBoot =
+      `O rascunho da sessão anterior não serve neste modelo e foi descartado ` +
+      `(${guardado.length} alteração(ões)). Motivo: ${String(erro instanceof Error ? erro.message : erro).slice(0, 160)}`;
+  }
 }
 
 const opcoesDeCanto: OpcoesDeCanto = { medidaMM: 20 };
@@ -377,8 +394,10 @@ em('#graduacao').addEventListener('change', (ev) => {
  * item 2.2): "neste computador" nao e "no servidor", e fingir que e seria pior
  * que dizer a verdade.
  */
+let ultimoGuardarFalhou = false;
 function guardarEAvisar(): void {
   const guardou = guardarRascunho(armazem, TENANT, MODELO, sessao.pendentes);
+  ultimoGuardarFalhou = sessao.pendentes.length > 0 && !guardou;
   const quantos = sessao.pendentes.length;
   em('#estado-salvo').textContent =
     quantos === 0
@@ -389,11 +408,12 @@ function guardarEAvisar(): void {
 }
 
 // Cinto e suspensorio: o rascunho ja vai ao localStorage a cada gesto, mas se
-// GUARDAR falhou (navegador sem espaco, modo privado), fechar a aba perde de
-// verdade — e ai o navegador pergunta antes.
+// o ULTIMO guardar falhou (navegador sem espaco, modo privado), fechar a aba
+// perde de verdade — e ai o navegador pergunta antes. Este handler NAO grava
+// nada: gravar aqui ressuscitava o rascunho que o brincar/digitalizar tinha
+// acabado de apagar antes do reload, e o rascunho orfao matava o boot.
 globalThis.addEventListener('beforeunload', (evento) => {
-  const guardou = guardarRascunho(armazem, TENANT, MODELO, sessao.pendentes);
-  if (sessao.pendentes.length > 0 && !guardou) evento.preventDefault();
+  if (ultimoGuardarFalhou) evento.preventDefault();
 });
 
 em('#salvar').addEventListener('click', () => {
@@ -1330,6 +1350,9 @@ if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV === true) {
 marcarFerramenta();
 conferirCamera();
 redesenhar();
+// O aviso do boot vem por ULTIMO: redesenhar acabou de escrever o estado normal
+// por cima, e um rascunho descartado merece ficar na tela, nao ser engolido.
+if (avisoDoBoot !== null) em('#estado-salvo').textContent = avisoDoBoot;
 
 
 // ------------------------------------------------------------------------ IA
