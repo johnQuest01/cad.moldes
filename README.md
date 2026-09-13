@@ -4,8 +4,9 @@ Motor geométrico 2D para modelagem de moldes de confecção, em TypeScript puro
 por log de eventos e o backend. **Fases 1 a 7 completas, mais as ferramentas de PRODUÇÃO do ofício
 (pregas, pence, bainha, desdobrar, redefinir aresta, alinhar), o teste de estresse do motor (3 rajadas
 determinísticas de 150 operações), o estresse do leigo na IA (fuzz das 28 ferramentas) e o modo
-demonstração (escanear molde de imagem da internet, sem escala, só para brincar): 561 testes passando**
-(218 motor + 148 editor + 14 DXF + 9 plotter + 15 encaixe + 54 foto + 61 IA + 18 persistência + 24 API).
+demonstração (escanear molde de imagem da internet, sem escala, só para brincar — calibrado com
+três imagens reais: foto de ateliê, encaixe colorido e diagrama): 565 testes passando**
+(219 motor + 148 editor + 14 DXF + 9 plotter + 15 encaixe + 57 foto + 61 IA + 18 persistência + 24 API).
 
 A especificação normativa está em [`MD/`](MD/README-fase1.MD) — comece pelo índice. A **Parte 6**
 diz onde o código está e traz cada decisão com o número medido que a sustenta.
