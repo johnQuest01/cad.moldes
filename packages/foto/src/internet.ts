@@ -752,5 +752,20 @@ export function tracarDaInternet(img: Imagem, opcoes: OpcoesDoBrinquedo): Brinqu
     },
   ];
 
+  // O mesmo alarme de resolucao do caminho calibrado: contorno fiel exige
+  // pixel valendo pouco. Uma captura de tela de 599 px com a imagem valendo
+  // 1 m da 1,7 mm por pixel — cada serrilha de 1 px do JPEG vira ~2 mm de
+  // onda na borda, e uma tira de 20 px de altura nao tem de onde sair lisa.
+  if (umPorPixel > 0.7 * MM) {
+    problemas.push({
+      gravidade: 'aviso',
+      codigo: 'RESOLUCAO_BAIXA',
+      mensagem:
+        `Imagem pequena para o tamanho assumido: cada pixel vale ${(umPorPixel / MM).toFixed(1)} mm, ` +
+        `e o contorno herda esse serrilhado. Uma foto em resolução maior (câmera do celular, sem ` +
+        `print de tela e sem compressão de WhatsApp) sai bem mais fiel.`,
+    });
+  }
+
   return { eventos, problemas, umPorPixel, pecas };
 }

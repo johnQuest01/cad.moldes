@@ -86,6 +86,11 @@ describe('tracarDaInternet', () => {
     // E o aviso de demonstracao vai junto, sempre.
     const aviso = d.problemas.find((p) => p.mensagem.includes('DEMONSTRAÇÃO SEM ESCALA'));
     expect(aviso).toBeDefined();
+
+    // 300 px valendo 600 mm = 2 mm por pixel: o alarme de resolucao dispara,
+    // dizendo o numero — e a resposta para "por que saiu serrilhado?".
+    const baixa = d.problemas.find((p) => p.codigo === 'RESOLUCAO_BAIXA');
+    expect(baixa?.mensagem).toContain('2.0 mm');
   });
 
   it('foto invertida: papel claro na mesa escura vira uma peça', () => {

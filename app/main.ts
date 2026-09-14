@@ -802,9 +802,14 @@ em('#brincar').addEventListener('click', () => {
 
       globalThis.localStorage.setItem(CHAVE_DIGITALIZADO, JSON.stringify(b.eventos));
       apagarRascunho(armazem, TENANT, MODELO);
+      // O aviso de resolucao vale a leitura ANTES do reload: e ele que explica
+      // por que uma captura de tela sai serrilhada e uma foto de celular nao.
+      const baixaRes = b.problemas.find((p) => p.codigo === 'RESOLUCAO_BAIXA');
       em('#estado-brincar').textContent =
-        `${b.pecas.length} molde(s) escaneado(s) — SEM escala, só para brincar. Recarregando…`;
-      globalThis.setTimeout(() => globalThis.location.reload(), 400);
+        `${b.pecas.length} molde(s), ${(b.umPorPixel / 1000).toFixed(1)} mm/pixel — SEM escala, só para brincar.` +
+        (baixaRes === undefined ? '' : ' Imagem pequena: foto em resolução maior sai mais fiel.') +
+        ' Recarregando…';
+      globalThis.setTimeout(() => globalThis.location.reload(), baixaRes === undefined ? 400 : 1800);
     } catch (erro) {
       em('#estado-brincar').textContent = `Não deu para ler a imagem: ${String(erro)}`;
     }
